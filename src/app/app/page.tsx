@@ -59,7 +59,7 @@ function WiredCallout() {
         </div>
       </div>
       <Link href={w ? `/app/wired?week=${w.id}` : "/app/wired"}>
-        <Button variant={urgent ? "secondary" : "primary"} className={cn(urgent && "border-transparent bg-white text-black hover:bg-white/90")}>
+        <Button variant={urgent ? "onAccent" : "primary"}>
           {state.cta} <ArrowRight className="size-4" />
         </Button>
       </Link>
@@ -148,7 +148,7 @@ export default function HomePage() {
             </div>
             {pending.length > 0 && (
               <Link href="/app/approvals">
-                <Button className="border-transparent bg-white text-black hover:bg-white/90">
+                <Button variant="onAccent">
                   Review <ArrowRight className="size-4" />
                 </Button>
               </Link>
