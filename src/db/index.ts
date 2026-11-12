@@ -58,9 +58,12 @@ export function getDb(): Promise<DB> {
   return g.__clubosDb;
 }
 
-/** DATABASE_URL, or POSTGRES_URL (set automatically by Supabase's Vercel integration). */
+/**
+ * POSTGRES_URL is set (and kept correct) automatically by Supabase's Vercel integration,
+ * so it wins over a hand-typed DATABASE_URL.
+ */
 function databaseUrl() {
-  return process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+  return process.env.POSTGRES_URL || process.env.DATABASE_URL || "";
 }
 
 export const usingEmbeddedDb = !databaseUrl();
