@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   Announcement,
+  HistoryEntry,
   ClubEvent,
   ClubSettings,
   Member,
@@ -28,6 +29,29 @@ import { ALL_ON, type FeatureKey } from "./features";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const nowISO = () => new Date().toISOString();
+
+const STATUS_ACTION: Record<TaskStatus, string> = {
+  todo: "Moved back to To do",
+  doing: "Moved to In progress",
+  done: "Marked done",
+};
+
+const MERGE_WINDOW_MS = 60_000;
+
+/**
+ * Adds a rating change to the history. Clicking through a few values quickly
+ * (same person, within a minute) becomes one entry: "Changed rating from 6/10 to 8/10".
+ */
+function addRatingEntry(history: HistoryEntry[], before: number | null, after: number | null, by: string): HistoryEntry[] {
+  const last = history.at(-1);
+  const merge = last?.kind === "rating" && last.by === by && Date.now() - new Date(last.at).getTime() < MERGE_WINDOW_MS;
+  const from = merge ? (last!.prev ?? null) : before;
+  const rest = merge ? history.slice(0, -1) : history;
+  if (merge && from === after) return rest; // changed it, then changed it back
+  const action =
+    after === null ? "Cleared the rating" : from === null ? `Rated ${after}/10` : `Changed rating from ${from}/10 to ${after}/10`;
+  return [...rest, { at: nowISO(), by, action, kind: "rating", prev: from }];
+}
 
 export const DEMO_USERS: Record<Role, { name: string; memberId?: string }> = {
   admin: { name: "Dev Mehta", memberId: "u3" },
@@ -77,6 +101,8 @@ type State = Data & {
 
   setRating: (id: string, rating: number | null) => void;
   setRatingNote: (id: string, note: string) => void;
+  /** Records a finished note edit in the rating history. */
+  logRatingNote: (id: string, before: string) => void;
   toggleCandidate: (id: string) => void;
   updateMember: (id: string, p: Partial<Member>) => void;
   addMember: (p: Pick<Member, "name" | "email" | "grade">) => void;
@@ -193,21 +219,58 @@ export const useClub = create<State>()(
             announcements: s.announcements.map((a) => (a.id === id ? { ...a, pinned: !a.pinned } : a)),
           })),
 
-        addTask: (t) => set((s) => ({ tasks: [{ ...t, id: uid(), status: "todo" }, ...s.tasks] })),
+        addTask: (t) =>
+          set((s) => {
+            const who = s.members.find((m) => m.id === t.assigneeId)?.name ?? "someone";
+            const history = [{ at: nowISO(), by: s.userName, action: `Created and assigned to ${who}` }];
+            return { tasks: [{ ...t, id: uid(), status: "todo", history }, ...s.tasks] };
+          }),
         setTaskStatus: (id, status) =>
-          set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, status } : t)) })),
+          set((s) => ({
+            tasks: s.tasks.map((t) =>
+              t.id === id && t.status !== status
+                ? { ...t, status, history: [...t.history, { at: nowISO(), by: s.userName, action: STATUS_ACTION[status] }] }
+                : t,
+            ),
+          })),
         removeTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
 
         addEvent: (e) => set((s) => ({ events: [...s.events, { ...e, id: uid() }] })),
         removeEvent: (id) => set((s) => ({ events: s.events.filter((e) => e.id !== id) })),
 
         setRating: (id, rating) =>
-          set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, rating } : m)) })),
+          set((s) => ({
+            members: s.members.map((m) =>
+              m.id === id && m.rating !== rating
+                ? { ...m, rating, ratingHistory: addRatingEntry(m.ratingHistory, m.rating, rating, s.userName) }
+                : m,
+            ),
+          })),
         setRatingNote: (id, ratingNote) =>
           set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ratingNote } : m)) })),
+        logRatingNote: (id, before) =>
+          set((s) => ({
+            members: s.members.map((m) => {
+              if (m.id !== id || m.ratingNote.trim() === before.trim()) return m;
+              const note = m.ratingNote.trim();
+              const action = note ? `Updated note: “${note}”` : "Cleared the note";
+              return { ...m, ratingHistory: [...m.ratingHistory, { at: nowISO(), by: s.userName, action }] };
+            }),
+          })),
         toggleCandidate: (id) =>
           set((s) => ({
-            members: s.members.map((m) => (m.id === id ? { ...m, boardCandidate: !m.boardCandidate } : m)),
+            members: s.members.map((m) =>
+              m.id === id
+                ? {
+                    ...m,
+                    boardCandidate: !m.boardCandidate,
+                    ratingHistory: [
+                      ...m.ratingHistory,
+                      { at: nowISO(), by: s.userName, action: m.boardCandidate ? "Removed from board candidates" : "Marked as a board candidate" },
+                    ],
+                  }
+                : m,
+            ),
           })),
         updateMember: (id, p) =>
           set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ...p } : m)) })),
@@ -215,7 +278,7 @@ export const useClub = create<State>()(
           set((s) => ({
             members: [
               ...s.members,
-              { ...p, id: uid(), title: "Member", isOfficer: false, joined: toISODate(new Date()), rating: null, ratingNote: "", boardCandidate: false },
+              { ...p, id: uid(), title: "Member", isOfficer: false, joined: toISODate(new Date()), rating: null, ratingNote: "", boardCandidate: false, ratingHistory: [] },
             ],
           })),
         removeMember: (id) => set((s) => ({ members: s.members.filter((m) => m.id !== id) })),
@@ -244,6 +307,9 @@ export const useClub = create<State>()(
             ...p.settings,
             features: { ...ALL_ON, ...p.settings?.features },
           },
+          // Older saved demos have no version history yet.
+          members: (p.members ?? current.members).map((m) => ({ ...m, ratingHistory: m.ratingHistory ?? [] })),
+          tasks: (p.tasks ?? current.tasks).map((t) => ({ ...t, history: t.history ?? [] })),
         };
       },
     },

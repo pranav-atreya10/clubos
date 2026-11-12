@@ -17,9 +17,11 @@ Open http://localhost:3000. With no Clerk keys it runs as a **demo**: sample dat
 
 | Account | Who | Can do |
 | --- | --- | --- |
-| Officer (`admin`) | Club leaders | Everything: AM Wired, members + private ratings, tasks, settings |
-| Advisor (`advisor`) | e.g. Mr. Anderson | Approve / edit / send back AM Wired messages, view members |
-| Member (`member`) | Everyone else | Home, announcements, calendar, their tasks, resources |
+| Officer (`admin`) | Club leaders (all equal) | Everything: AM Wired, members, ratings, tasks, settings, features |
+| Advisor (`advisor`) | e.g. Mr. Anderson | Approve / edit / send back AM Wired, post announcements, rate members and star board candidates, view tasks (read only) |
+| Member (`member`) | Everyone else | Home, announcements, calendar, resources, and **only their own** tasks |
+
+Tasks and member ratings keep a **version history** (who changed what, and when). Quick back-to-back rating clicks by the same person are merged into one entry.
 
 ## Turning on real sign-in (Clerk)
 

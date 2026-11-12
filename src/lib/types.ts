@@ -2,6 +2,16 @@ import type { Features } from "./features";
 
 export type Role = "admin" | "advisor" | "member";
 
+/** One line in a version history: who did what, and when. */
+export type HistoryEntry = {
+  at: string; // ISO timestamp
+  by: string;
+  action: string;
+  /** For rating changes: the rating before this change, so quick edits merge into one entry. */
+  kind?: "rating";
+  prev?: number | null;
+};
+
 export type Member = {
   id: string;
   name: string;
@@ -13,6 +23,7 @@ export type Member = {
   rating: number | null; // leaders-only, out of 10
   ratingNote: string;
   boardCandidate: boolean;
+  ratingHistory: HistoryEntry[];
 };
 
 export type EventType = "meeting" | "race" | "event" | "deadline";
@@ -62,6 +73,7 @@ export type Task = {
   assigneeId: string;
   due: string;
   status: TaskStatus;
+  history: HistoryEntry[];
 };
 
 export type ResourceKind = "doc" | "slides" | "link" | "sheet";

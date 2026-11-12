@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EyeOff, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { Member } from "@/lib/types";
@@ -12,13 +12,30 @@ import { Avatar } from "@/components/ui/avatar";
 import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { RatingBar } from "@/components/app/rating";
+import { History } from "@/components/wired/history";
 
 type Filter = "all" | "officers" | "candidates" | "unrated";
 type Sort = "rating" | "name" | "grade";
 
-function MemberModal({ m, onClose, canEdit, ratings }: { m: Member; onClose: () => void; canEdit: boolean; ratings: boolean }) {
+function MemberModal({
+  m,
+  onClose,
+  canEdit,
+  canRate,
+  ratings,
+}: {
+  m: Member;
+  onClose: () => void;
+  canEdit: boolean;
+  canRate: boolean;
+  ratings: boolean;
+}) {
   const s = useClub();
   const live = s.members.find((x) => x.id === m.id) ?? m;
+  const noteBefore = useRef(live.ratingNote);
+  const logNote = s.logRatingNote;
+  // If the window closes while the note is being typed, still record the change.
+  useEffect(() => () => logNote(m.id, noteBefore.current), [logNote, m.id]);
   return (
     <Modal open onClose={onClose} title={live.name}>
       <div className="space-y-5">
@@ -37,14 +54,19 @@ function MemberModal({ m, onClose, canEdit, ratings }: { m: Member; onClose: () 
         <>
         <div>
           <Label hint="Leaders only">Leadership rating</Label>
-          <RatingBar value={live.rating} readOnly={!canEdit} onChange={(v) => s.setRating(live.id, v)} />
+          <RatingBar value={live.rating} readOnly={!canRate} onChange={(v) => s.setRating(live.id, v)} />
         </div>
         <label className="block">
           <Label hint="Leaders only">Private note</Label>
           <Textarea
-            disabled={!canEdit}
+            disabled={!canRate}
             rows={3}
             value={live.ratingNote}
+            onFocus={() => (noteBefore.current = live.ratingNote)}
+            onBlur={() => {
+              s.logRatingNote(live.id, noteBefore.current);
+              noteBefore.current = live.ratingNote;
+            }}
             onChange={(e) => s.setRatingNote(live.id, e.target.value)}
             placeholder="Why this rating? e.g. “Led the pit-stop drill without being asked.”"
           />
@@ -55,7 +77,7 @@ function MemberModal({ m, onClose, canEdit, ratings }: { m: Member; onClose: () 
           {ratings ? (
           <Button
             variant={live.boardCandidate ? "accent" : "secondary"}
-            disabled={!canEdit}
+            disabled={!canRate}
             onClick={() => s.toggleCandidate(live.id)}
           >
             <Star className={cn("size-4", live.boardCandidate && "fill-current")} />
@@ -77,6 +99,11 @@ function MemberModal({ m, onClose, canEdit, ratings }: { m: Member; onClose: () 
             </Button>
           )}
         </div>
+        {ratings && (
+          <div className="max-h-64 overflow-y-auto border-t border-line pt-5">
+            <History title="Rating history" items={live.ratingHistory} empty="Not rated yet." />
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -132,7 +159,8 @@ export default function MembersPage() {
   const setRating = useClub((s) => s.setRating);
   const toggleCandidate = useClub((s) => s.toggleCandidate);
   const ratings = useClub((s) => s.settings.features.ratings);
-  const canEdit = role === "admin";
+  const canEdit = role === "admin"; // roles, adding and removing members
+  const canRate = role === "admin" || role === "advisor"; // ratings, notes, board candidates
   const [pickedFilter, setFilter] = useState<Filter>("all");
   const [pickedSort, setSort] = useState<Sort>("rating");
   // With ratings turned off, rating-based filters and sorting fall back to plain ones.
@@ -250,12 +278,12 @@ export default function MembersPage() {
                   {ratings && (
                   <>
                   <div className="col-span-2 md:col-span-1" onClick={(e) => e.stopPropagation()}>
-                    <RatingBar size="sm" value={m.rating} readOnly={!canEdit} onChange={(v) => setRating(m.id, v)} />
+                    <RatingBar size="sm" value={m.rating} readOnly={!canRate} onChange={(v) => setRating(m.id, v)} />
                   </div>
                   <button
                     aria-label={m.boardCandidate ? "Remove board candidate" : "Mark board candidate"}
                     aria-pressed={m.boardCandidate}
-                    disabled={!canEdit}
+                    disabled={!canRate}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleCandidate(m.id);
@@ -276,7 +304,7 @@ export default function MembersPage() {
         </Card>
       )}
 
-      {open && <MemberModal m={open} canEdit={canEdit} ratings={ratings} onClose={() => setOpenId(null)} />}
+      {open && <MemberModal m={open} canEdit={canEdit} canRate={canRate} ratings={ratings} onClose={() => setOpenId(null)} />}
       <AddMember open={adding} onClose={() => setAdding(false)} />
     </Page>
   );

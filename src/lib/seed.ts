@@ -2,6 +2,7 @@ import type {
   Announcement,
   ClubEvent,
   ClubSettings,
+  HistoryEntry,
   Member,
   Resource,
   Task,
@@ -26,6 +27,30 @@ export const seedSettings = (): ClubSettings => ({
   features: { ...ALL_ON },
 });
 
+const ago = (days: number, hour = 16) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+
+/** A believable rating history: first rated a month ago, sometimes changed since. */
+const ratingHistory = (rating: number | null, earlier?: { rating: number; by: string; days: number; note?: string }): HistoryEntry[] => {
+  if (rating === null) return [];
+  if (!earlier) return [{ at: ago(30), by: "Pranav Atreya", action: `Rated ${rating}/10`, kind: "rating", prev: null }];
+  return [
+    { at: ago(30), by: "Pranav Atreya", action: `Rated ${earlier.rating}/10`, kind: "rating", prev: null },
+    { at: ago(earlier.days), by: earlier.by, action: `Changed rating from ${earlier.rating}/10 to ${rating}/10`, kind: "rating", prev: earlier.rating },
+    ...(earlier.note ? [{ at: ago(earlier.days, 17), by: earlier.by, action: `Updated note: “${earlier.note}”` }] : []),
+  ];
+};
+
+const CHANGES: Record<string, { rating: number; by: string; days: number; note?: string }> = {
+  u4: { rating: 7, by: "Sam Rivera", days: 6, note: "Never misses. Led the pit-stop drill unprompted." },
+  u9: { rating: 6, by: "Dev Mehta", days: 4, note: "Missed the last 3 meetings." },
+  u10: { rating: 6, by: "Mr. Anderson", days: 9 },
+};
+
 const m = (
   id: string,
   name: string,
@@ -45,6 +70,7 @@ const m = (
   rating,
   ratingNote: note,
   boardCandidate,
+  ratingHistory: ratingHistory(rating, CHANGES[id]),
 });
 
 export const seedMembers = (): Member[] => [
@@ -124,14 +150,28 @@ export const seedAnnouncements = (): Announcement[] => [
   { id: "a3", title: "Welcome to our new members!", body: "We had 6 people join at the club fair. Say hi and help them find a pit crew.", date: daysFromToday(-9), author: "Pranav Atreya", pinned: false },
 ];
 
+const NAMES: Record<string, string> = {
+  u1: "Pranav Atreya", u2: "Sam Rivera", u3: "Dev Mehta", u4: "Maya Chen", u5: "Jordan Reyes", u7: "Leo Park", u10: "Nina Okafor",
+};
+const task = (id: string, title: string, assigneeId: string, dueIn: number, status: Task["status"], createdDaysAgo: number): Task => {
+  const history: HistoryEntry[] = [
+    { at: ago(createdDaysAgo, 15), by: "Dev Mehta", action: `Created and assigned to ${NAMES[assigneeId]}` },
+  ];
+  if (status !== "todo") history.push({ at: ago(Math.max(0, createdDaysAgo - 2), 18), by: NAMES[assigneeId], action: "Moved to In progress" });
+  if (status === "done") history.push({ at: ago(Math.max(0, createdDaysAgo - 3), 19), by: NAMES[assigneeId], action: "Marked done" });
+  return { id, title, assigneeId, due: daysFromToday(dueIn), status, history };
+};
+
 export const seedTasks = (): Task[] => [
-  { id: "t1", title: "Submit next week's AM Wired draft", assigneeId: "u3", due: daysFromToday(3), status: "todo" },
-  { id: "t2", title: "Book the bus for State Invitational", assigneeId: "u2", due: daysFromToday(5), status: "doing" },
-  { id: "t3", title: "Collect permission slips", assigneeId: "u7", due: daysFromToday(4), status: "todo" },
-  { id: "t4", title: "Post meeting recap on Schoology", assigneeId: "u3", due: daysFromToday(-1), status: "todo" },
-  { id: "t5", title: "Order team shirts", assigneeId: "u10", due: daysFromToday(12), status: "todo" },
-  { id: "t6", title: "Update race roster", assigneeId: "u1", due: daysFromToday(-2), status: "done" },
-  { id: "t7", title: "Clean the pit-stop kit", assigneeId: "u5", due: daysFromToday(1), status: "doing" },
+  task("t1", "Submit next week's AM Wired draft", "u3", 3, "todo", 2),
+  task("t2", "Book the bus for State Invitational", "u2", 5, "doing", 6),
+  task("t3", "Collect permission slips", "u7", 4, "todo", 5),
+  task("t4", "Post meeting recap on Schoology", "u3", -1, "todo", 4),
+  task("t5", "Order team shirts", "u10", 12, "todo", 3),
+  task("t6", "Update race roster", "u1", -2, "done", 8),
+  task("t7", "Clean the pit-stop kit", "u5", 1, "doing", 4),
+  task("t8", "Run the pit-stop drill at Wednesday's meeting", "u4", 6, "todo", 1),
+  task("t9", "Bring the timing stopwatches", "u4", 2, "doing", 3),
 ];
 
 export const seedResources = (): Resource[] => [

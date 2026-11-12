@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 export default function AnnouncementsPage() {
   const s = useClub();
   const isAdmin = s.role === "admin";
+  const canPost = isAdmin || s.role === "advisor";
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -26,7 +27,7 @@ export default function AnnouncementsPage() {
         title="Announcements"
         subtitle="Club news for members — no more digging through Schoology."
         actions={
-          isAdmin && (
+          canPost && (
             <Button variant="primary" onClick={() => setOpen(true)}>
               <Plus className="size-4" /> Post
             </Button>
@@ -51,7 +52,7 @@ export default function AnnouncementsPage() {
             key={a.id}
             a={a}
             actions={
-              isAdmin && (
+              canPost && (
                 <div className="flex shrink-0 gap-1 self-start opacity-60 transition-opacity group-hover:opacity-100">
                   <button
                     aria-label={a.pinned ? "Unpin" : "Pin"}
