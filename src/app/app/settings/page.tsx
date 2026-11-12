@@ -7,7 +7,7 @@ import type { ClubSettings } from "@/lib/types";
 import { Page, PageHeader, Card } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
-import { clerkEnabled } from "@/lib/clerk";
+import { InviteCode } from "@/components/app/invite-code";
 import { FEATURES } from "@/lib/features";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
@@ -39,6 +39,7 @@ export default function SettingsPage() {
   const template = useClub((s) => s.settings.wiredTemplate);
   const update = useClub((s) => s.updateSettings);
   const reset = useClub((s) => s.resetDemo);
+  const demo = useClub((s) => s.demo);
   const features = useClub((s) => s.settings.features);
   const setFeature = useClub((s) => s.setFeature);
   const onCount = FEATURES.filter((f) => features[f.key]).length;
@@ -54,6 +55,14 @@ export default function SettingsPage() {
             <Field k="meetingTime" label="Time" />
             <Field k="meetingRoom" label="Room" />
           </div>
+        </Section>
+
+        <Section
+          id="invite"
+          title="Invite people"
+          body="Share this code. Anyone who signs in and enters it joins as a member. Make them an officer or advisor in Members."
+        >
+          <InviteCode />
         </Section>
 
         <Section
@@ -85,10 +94,7 @@ export default function SettingsPage() {
         {features.wired && (
         <Section title="AM Wired" body="Where approved announcements go, and how drafts are worded.">
           <Field k="wiredEmail" label="AM Wired email" type="email" />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field k="advisorName" label="Advisor" />
-            <Field k="advisorEmail" label="Advisor email" type="email" />
-          </div>
+          <Field k="advisorName" label="Advisor’s name" hint="Used in AM Wired messages" />
           <label className="block">
             <Label hint="{club} {day} {date} {time} {room} {details}">Draft template</Label>
             <Textarea rows={4} value={template} onChange={(e) => update({ wiredTemplate: e.target.value })} />
@@ -105,8 +111,8 @@ export default function SettingsPage() {
         </Section>
         )}
 
-        {!clerkEnabled && (
-          <Section title="Demo" body="This is a demo with sample data saved in your browser.">
+        {demo && (
+          <Section title="Demo" body="This club is sample data in the built-in database. Resetting puts it back how it started.">
             <Button variant="danger" onClick={reset}>
               <RotateCcw className="size-4" /> Reset sample data
             </Button>

@@ -1,63 +1,33 @@
 "use client";
 
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   Announcement,
-  HistoryEntry,
   ClubEvent,
   ClubSettings,
+  ClubSummary,
   Member,
   Resource,
   Role,
+  Snapshot,
   Task,
   TaskStatus,
   WiredWeek,
 } from "./types";
-import {
-  seedAnnouncements,
-  seedEvents,
-  seedMembers,
-  seedResources,
-  seedSettings,
-  seedTasks,
-  seedWired,
-} from "./seed";
-import { buildDraft } from "./wired";
-import { addDays, fromISODate, toISODate } from "./dates";
-import { ALL_ON, type FeatureKey } from "./features";
+import type { FeatureKey } from "./features";
+import { ALL_ON } from "./features";
+import { DEFAULT_TEMPLATE } from "./seed";
+import * as api from "@/server/actions";
+import type { Result } from "@/server/actions";
 
-const uid = () => Math.random().toString(36).slice(2, 9);
-const nowISO = () => new Date().toISOString();
-
-const STATUS_ACTION: Record<TaskStatus, string> = {
-  todo: "Moved back to To do",
-  doing: "Moved to In progress",
-  done: "Marked done",
+/** Demo logins (only used when Clerk isn't set up). */
+export const DEMO_USERS: Record<Role, { id: string; name: string }> = {
+  admin: { id: "demo-officer", name: "Dev Mehta" },
+  advisor: { id: "demo-advisor", name: "Mr. Anderson" },
+  member: { id: "demo-member", name: "Maya Chen" },
 };
 
-const MERGE_WINDOW_MS = 60_000;
-
-/**
- * Adds a rating change to the history. Clicking through a few values quickly
- * (same person, within a minute) becomes one entry: "Changed rating from 6/10 to 8/10".
- */
-function addRatingEntry(history: HistoryEntry[], before: number | null, after: number | null, by: string): HistoryEntry[] {
-  const last = history.at(-1);
-  const merge = last?.kind === "rating" && last.by === by && Date.now() - new Date(last.at).getTime() < MERGE_WINDOW_MS;
-  const from = merge ? (last!.prev ?? null) : before;
-  const rest = merge ? history.slice(0, -1) : history;
-  if (merge && from === after) return rest; // changed it, then changed it back
-  const action =
-    after === null ? "Cleared the rating" : from === null ? `Rated ${after}/10` : `Changed rating from ${from}/10 to ${after}/10`;
-  return [...rest, { at: nowISO(), by, action, kind: "rating", prev: from }];
-}
-
-export const DEMO_USERS: Record<Role, { name: string; memberId?: string }> = {
-  admin: { name: "Dev Mehta", memberId: "u3" },
-  advisor: { name: "Mr. Anderson" },
-  member: { name: "Maya Chen", memberId: "u4" },
-};
+type Status = "loading" | "ready" | "no-club" | "signed-out" | "error";
 
 type Data = {
   settings: ClubSettings;
@@ -70,9 +40,25 @@ type Data = {
 };
 
 type State = Data & {
+  status: Status;
+  /** Last save problem, shown as a small banner. */
+  error: string | null;
+  demo: boolean;
+  clubs: ClubSummary[];
+  clubId: string | null;
   role: Role;
   userName: string;
-  setIdentity: (role: Role, name: string) => void;
+  meId: string | null;
+  inviteCode: string | null;
+
+  load: () => Promise<void>;
+  refresh: () => Promise<void>;
+  dismissError: () => void;
+  setDemoRole: (role: Role) => void;
+  switchClub: (clubId: string) => Promise<void>;
+  createClub: (name: string) => Promise<string | null>;
+  joinClub: (code: string) => Promise<string | null>;
+  newInvite: () => void;
 
   updateSettings: (p: Partial<ClubSettings>) => void;
   setFeature: (key: FeatureKey, on: boolean) => void;
@@ -101,10 +87,10 @@ type State = Data & {
 
   setRating: (id: string, rating: number | null) => void;
   setRatingNote: (id: string, note: string) => void;
-  /** Records a finished note edit in the rating history. */
   logRatingNote: (id: string, before: string) => void;
   toggleCandidate: (id: string) => void;
   updateMember: (id: string, p: Partial<Member>) => void;
+  setMemberRole: (id: string, role: Role) => void;
   addMember: (p: Pick<Member, "name" | "email" | "grade">) => void;
   removeMember: (id: string) => void;
 
@@ -114,204 +100,224 @@ type State = Data & {
   resetDemo: () => void;
 };
 
-const seed = (): Data => {
-  const settings = seedSettings();
+const EMPTY: Data = {
+  settings: {
+    clubName: "",
+    advisorName: "",
+    advisorEmail: "",
+    wiredEmail: "",
+    attendanceUrl: "",
+    meetingDay: "",
+    meetingTime: "",
+    meetingRoom: "",
+    wiredTemplate: DEFAULT_TEMPLATE,
+    features: { ...ALL_ON },
+  },
+  members: [],
+  events: [],
+  wired: [],
+  announcements: [],
+  tasks: [],
+  resources: [],
+};
+
+const fromSnapshot = (s: Snapshot): Partial<State> => {
+  const base = { demo: s.viewer.demo, userName: s.viewer.name, clubs: s.clubs };
+  if (!s.club) return { ...base, ...EMPTY, status: "no-club", clubId: null, meId: null, inviteCode: null, role: "member" };
+  const c = s.club;
   return {
-    settings,
-    members: seedMembers(),
-    events: seedEvents(),
-    wired: seedWired(settings.wiredTemplate),
-    announcements: seedAnnouncements(),
-    tasks: seedTasks(),
-    resources: seedResources(),
+    ...base,
+    status: "ready",
+    clubId: c.id,
+    role: c.role,
+    meId: c.meId,
+    inviteCode: c.inviteCode,
+    settings: c.settings,
+    members: c.members,
+    events: c.events,
+    wired: c.wired,
+    announcements: c.announcements,
+    tasks: c.tasks,
+    resources: c.resources,
   };
 };
 
-export const useClub = create<State>()(
-  persist(
-    (set, get) => {
-      const patchWeek = (
-        id: string,
-        patch: Partial<WiredWeek>,
-        action?: string,
-      ) =>
-        set((s) => ({
-          wired: s.wired.map((w) =>
-            w.id === id
-              ? {
-                  ...w,
-                  ...patch,
-                  updatedAt: nowISO(),
-                  history: action
-                    ? [...w.history, { at: nowISO(), by: s.userName, action }]
-                    : w.history,
-                }
-              : w,
-          ),
-        }));
+/* ---- background saving ---- */
 
-      return {
-        ...seed(),
-        role: "admin",
-        userName: DEMO_USERS.admin.name,
-        setIdentity: (role, userName) => set({ role, userName }),
+let inFlight = 0;
+/** Typing is saved after a short pause, one timer per field. */
+const timers = new Map<string, { t: ReturnType<typeof setTimeout>; run: () => Promise<void> }>();
+export const hasPendingSaves = () => inFlight > 0 || timers.size > 0;
 
-        updateSettings: (p) => set((s) => ({ settings: { ...s.settings, ...p } })),
-        setFeature: (key, on) =>
-          set((s) => ({ settings: { ...s.settings, features: { ...s.settings.features, [key]: on } } })),
+async function flushTyping() {
+  const jobs = [...timers.values()];
+  timers.forEach((j) => clearTimeout(j.t));
+  timers.clear();
+  await Promise.all(jobs.map((j) => j.run()));
+}
 
-        wiredEdit: (id, message) => {
-          const w = get().wired.find((x) => x.id === id);
-          // Editing an approved/changes message sends it back to draft.
-          const status =
-            w && (w.status === "approved" || w.status === "changes") ? "draft" : w?.status;
-          patchWeek(id, { message, status });
-        },
-        wiredGenerate: (id) => {
-          const { settings, events, wired } = get();
-          const w = wired.find((x) => x.id === id);
-          if (!w) return;
-          // Without the calendar, drafts use the usual meeting day/time/room from Settings.
-          const useCalendar = settings.features.calendar;
-          patchWeek(
-            id,
-            { message: buildDraft(settings, useCalendar ? events : [], w.weekOf), status: "draft" },
-            useCalendar ? "Auto-filled draft from calendar" : "Auto-filled draft",
-          );
-        },
-        wiredSubmit: (id) =>
-          patchWeek(id, { status: "pending", advisorNote: "" }, `Sent to ${get().settings.advisorName} for approval`),
-        wiredApprove: (id, message) =>
-          patchWeek(
-            id,
-            { status: "approved", ...(message !== undefined ? { message } : {}) },
-            message !== undefined ? "Edited and approved" : "Approved",
-          ),
-        wiredRequestChanges: (id, note) =>
-          patchWeek(id, { status: "changes", advisorNote: note }, "Requested changes"),
-        wiredSkip: (id) => patchWeek(id, { status: "skipped" }, "Skipped this week"),
-        wiredUnskip: (id) => patchWeek(id, { status: "draft" }, "Un-skipped"),
-        wiredRecall: (id) => patchWeek(id, { status: "draft" }, "Pulled back to edit"),
-        wiredMarkSent: (id) => patchWeek(id, { status: "sent" }, "Marked as sent to AM Wired"),
-        wiredAddWeek: () =>
-          set((s) => {
-            const last = [...s.wired].sort((a, b) => a.weekOf.localeCompare(b.weekOf)).at(-1);
-            const weekOf = last ? toISODate(addDays(fromISODate(last.weekOf), 7)) : toISODate(new Date());
-            return {
-              wired: [
-                ...s.wired,
-                { id: uid(), weekOf, status: "draft", message: "", advisorNote: "", updatedAt: nowISO(), history: [] },
-              ],
-            };
-          }),
+export const useClub = create<State>()((set, get) => {
+  /** Apply a change on screen right away, save it, then show the saved version from the database. */
+  const save = async (optimistic: ((s: State) => Partial<State>) | null, server: (clubId: string) => Promise<Result>) => {
+    const clubId = get().clubId;
+    if (!clubId) return;
+    await flushTyping();
+    if (optimistic) set(optimistic(get()));
+    inFlight++;
+    let failed = false;
+    try {
+      const r = await server(clubId);
+      if (r.ok) set(fromSnapshot(r.snapshot));
+      else {
+        failed = true;
+        set({ error: r.error });
+      }
+    } catch {
+      failed = true;
+      set({ error: "Couldn't reach the server. Check your connection." });
+    } finally {
+      inFlight--;
+    }
+    // Undo what we showed early by reloading what's really saved.
+    if (failed) await get().refresh();
+  };
 
-        addAnnouncement: (a) =>
-          set((s) => ({
-            announcements: [
-              { ...a, id: uid(), date: toISODate(new Date()), author: s.userName },
-              ...s.announcements,
-            ],
-          })),
-        removeAnnouncement: (id) =>
-          set((s) => ({ announcements: s.announcements.filter((a) => a.id !== id) })),
-        togglePin: (id) =>
-          set((s) => ({
-            announcements: s.announcements.map((a) => (a.id === id ? { ...a, pinned: !a.pinned } : a)),
-          })),
+  /** For text boxes: update the screen now, save after the person pauses typing. */
+  const saveTyping = (key: string, optimistic: (s: State) => Partial<State>, server: (clubId: string) => Promise<Result>) => {
+    const clubId = get().clubId;
+    if (!clubId) return;
+    set(optimistic(get()));
+    const prev = timers.get(key);
+    if (prev) clearTimeout(prev.t);
+    const run = async () => {
+      timers.delete(key);
+      inFlight++;
+      let failed = false;
+      try {
+        const r = await server(clubId);
+        // Don't replace what's on screen (they may still be typing) unless something went wrong.
+        if (!r.ok) {
+          failed = true;
+          set({ error: r.error });
+        }
+      } catch {
+        failed = true;
+        set({ error: "Couldn't reach the server. Check your connection." });
+      } finally {
+        inFlight--;
+      }
+      if (failed) await get().refresh();
+    };
+    timers.set(key, { t: setTimeout(run, 600), run });
+  };
 
-        addTask: (t) =>
-          set((s) => {
-            const who = s.members.find((m) => m.id === t.assigneeId)?.name ?? "someone";
-            const history = [{ at: nowISO(), by: s.userName, action: `Created and assigned to ${who}` }];
-            return { tasks: [{ ...t, id: uid(), status: "todo", history }, ...s.tasks] };
-          }),
-        setTaskStatus: (id, status) =>
-          set((s) => ({
-            tasks: s.tasks.map((t) =>
-              t.id === id && t.status !== status
-                ? { ...t, status, history: [...t.history, { at: nowISO(), by: s.userName, action: STATUS_ACTION[status] }] }
-                : t,
-            ),
-          })),
-        removeTask: (id) => set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+  const mapList = <K extends "wired" | "tasks" | "members" | "announcements">(k: K, id: string, patch: Partial<State[K][number]>) =>
+    (s: State) => ({ [k]: (s[k] as { id: string }[]).map((x) => (x.id === id ? { ...x, ...patch } : x)) }) as Partial<State>;
 
-        addEvent: (e) => set((s) => ({ events: [...s.events, { ...e, id: uid() }] })),
-        removeEvent: (id) => set((s) => ({ events: s.events.filter((e) => e.id !== id) })),
+  const handle = async (p: Promise<Result>): Promise<string | null> => {
+    try {
+      const r = await p;
+      if (r.ok) {
+        set(fromSnapshot(r.snapshot));
+        return null;
+      }
+      return r.error;
+    } catch {
+      return "Couldn't reach the server. Check your connection.";
+    }
+  };
 
-        setRating: (id, rating) =>
-          set((s) => ({
-            members: s.members.map((m) =>
-              m.id === id && m.rating !== rating
-                ? { ...m, rating, ratingHistory: addRatingEntry(m.ratingHistory, m.rating, rating, s.userName) }
-                : m,
-            ),
-          })),
-        setRatingNote: (id, ratingNote) =>
-          set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ratingNote } : m)) })),
-        logRatingNote: (id, before) =>
-          set((s) => ({
-            members: s.members.map((m) => {
-              if (m.id !== id || m.ratingNote.trim() === before.trim()) return m;
-              const note = m.ratingNote.trim();
-              const action = note ? `Updated note: “${note}”` : "Cleared the note";
-              return { ...m, ratingHistory: [...m.ratingHistory, { at: nowISO(), by: s.userName, action }] };
-            }),
-          })),
-        toggleCandidate: (id) =>
-          set((s) => ({
-            members: s.members.map((m) =>
-              m.id === id
-                ? {
-                    ...m,
-                    boardCandidate: !m.boardCandidate,
-                    ratingHistory: [
-                      ...m.ratingHistory,
-                      { at: nowISO(), by: s.userName, action: m.boardCandidate ? "Removed from board candidates" : "Marked as a board candidate" },
-                    ],
-                  }
-                : m,
-            ),
-          })),
-        updateMember: (id, p) =>
-          set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ...p } : m)) })),
-        addMember: (p) =>
-          set((s) => ({
-            members: [
-              ...s.members,
-              { ...p, id: uid(), title: "Member", isOfficer: false, joined: toISODate(new Date()), rating: null, ratingNote: "", boardCandidate: false, ratingHistory: [] },
-            ],
-          })),
-        removeMember: (id) => set((s) => ({ members: s.members.filter((m) => m.id !== id) })),
+  return {
+    ...EMPTY,
+    status: "loading",
+    error: null,
+    demo: false,
+    clubs: [],
+    clubId: null,
+    role: "member",
+    userName: "",
+    meId: null,
+    inviteCode: null,
 
-        addResource: (r) =>
-          set((s) => ({
-            resources: [{ ...r, id: uid(), addedBy: s.userName, date: toISODate(new Date()) }, ...s.resources],
-          })),
-        removeResource: (id) => set((s) => ({ resources: s.resources.filter((r) => r.id !== id) })),
-
-        resetDemo: () => set({ ...seed() }),
-      };
+    load: async () => {
+      const r = await api.getSnapshot().catch(() => null);
+      if (!r) return set({ status: "error", error: "Couldn't reach the server." });
+      if (r.ok) set(fromSnapshot(r.snapshot));
+      else set({ status: r.error === "Please sign in" ? "signed-out" : "error", error: r.error });
     },
-    {
-      name: "clubos-demo-v1",
-      storage: createJSONStorage(() => localStorage),
-      skipHydration: true,
-      // Older saved demos don't have feature switches yet — fill in "all on".
-      merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<State>;
-        return {
-          ...current,
-          ...p,
-          settings: {
-            ...current.settings,
-            ...p.settings,
-            features: { ...ALL_ON, ...p.settings?.features },
-          },
-          // Older saved demos have no version history yet.
-          members: (p.members ?? current.members).map((m) => ({ ...m, ratingHistory: m.ratingHistory ?? [] })),
-          tasks: (p.tasks ?? current.tasks).map((t) => ({ ...t, history: t.history ?? [] })),
-        };
-      },
+    refresh: async () => {
+      if (hasPendingSaves()) return;
+      const r = await api.getSnapshot().catch(() => null);
+      if (r?.ok && !hasPendingSaves()) set(fromSnapshot(r.snapshot));
     },
-  ),
-);
+    dismissError: () => set({ error: null }),
+
+    setDemoRole: (role) => {
+      set({ role, userName: DEMO_USERS[role].name });
+      void handle(api.setDemoUser(DEMO_USERS[role].id));
+    },
+    switchClub: async (clubId) => {
+      await flushTyping();
+      const err = await handle(api.switchClub(clubId));
+      if (err) set({ error: err });
+    },
+    createClub: (name) => handle(api.createClub(name)),
+    joinClub: (code) => handle(api.joinClub(code)),
+    newInvite: () => void save(null, (c) => api.newInvite(c)),
+
+    updateSettings: (p) =>
+      saveTyping(`settings:${Object.keys(p).join(",")}`, (s) => ({ settings: { ...s.settings, ...p } }), (c) => api.updateSettings(c, p)),
+    setFeature: (key, on) =>
+      void save((s) => ({ settings: { ...s.settings, features: { ...s.settings.features, [key]: on } } }), (c) => api.setFeature(c, key, on)),
+
+    wiredEdit: (id, message) =>
+      saveTyping(`wired:${id}`, (s) => {
+        const w = s.wired.find((x) => x.id === id);
+        const status = w && (w.status === "approved" || w.status === "changes") ? "draft" : w?.status;
+        return mapList("wired", id, { message, status })(s);
+      }, (c) => api.wiredEdit(c, id, message)),
+    wiredGenerate: (id) => void save(null, (c) => api.wiredGenerate(c, id)),
+    wiredSubmit: (id) => void save(mapList("wired", id, { status: "pending" }), (c) => api.wiredSubmit(c, id)),
+    wiredApprove: (id, message) =>
+      void save(mapList("wired", id, { status: "approved", ...(message !== undefined ? { message } : {}) }), (c) => api.wiredApprove(c, id, message)),
+    wiredRequestChanges: (id, note) => void save(mapList("wired", id, { status: "changes", advisorNote: note }), (c) => api.wiredRequestChanges(c, id, note)),
+    wiredSkip: (id) => void save(mapList("wired", id, { status: "skipped" }), (c) => api.wiredSkip(c, id)),
+    wiredUnskip: (id) => void save(mapList("wired", id, { status: "draft" }), (c) => api.wiredUnskip(c, id)),
+    wiredRecall: (id) => void save(mapList("wired", id, { status: "draft" }), (c) => api.wiredRecall(c, id)),
+    wiredMarkSent: (id) => void save(mapList("wired", id, { status: "sent" }), (c) => api.wiredMarkSent(c, id)),
+    wiredAddWeek: () => void save(null, (c) => api.wiredAddWeek(c)),
+
+    addAnnouncement: (a) => void save(null, (c) => api.addAnnouncement(c, a)),
+    removeAnnouncement: (id) => void save((s) => ({ announcements: s.announcements.filter((a) => a.id !== id) }), (c) => api.removeAnnouncement(c, id)),
+    togglePin: (id) =>
+      void save((s) => ({ announcements: s.announcements.map((a) => (a.id === id ? { ...a, pinned: !a.pinned } : a)) }), (c) => api.togglePin(c, id)),
+
+    addTask: (t) => void save(null, (c) => api.addTask(c, t)),
+    setTaskStatus: (id, status) => void save(mapList("tasks", id, { status }), (c) => api.setTaskStatus(c, id, status)),
+    removeTask: (id) => void save((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }), (c) => api.removeTask(c, id)),
+
+    addEvent: (e) => void save(null, (c) => api.addEvent(c, e)),
+    removeEvent: (id) => void save((s) => ({ events: s.events.filter((e) => e.id !== id) }), (c) => api.removeEvent(c, id)),
+
+    setRating: (id, rating) => void save(mapList("members", id, { rating }), (c) => api.setRating(c, id, rating)),
+    setRatingNote: (id, ratingNote) => saveTyping(`note:${id}`, mapList("members", id, { ratingNote }), (c) => api.setRatingNote(c, id, ratingNote)),
+    logRatingNote: (id, before) => void save(null, (c) => api.logRatingNote(c, id, before)),
+    toggleCandidate: (id) => {
+      const m = get().members.find((x) => x.id === id);
+      void save(mapList("members", id, { boardCandidate: !m?.boardCandidate }), (c) => api.toggleCandidate(c, id));
+    },
+    updateMember: (id, p) => {
+      if (p.title === undefined) return;
+      const title = p.title;
+      saveTyping(`title:${id}`, mapList("members", id, { title }), (c) => api.updateMemberTitle(c, id, title));
+    },
+    setMemberRole: (id, role) => void save(mapList("members", id, { role, isOfficer: role === "admin" }), (c) => api.setMemberRole(c, id, role)),
+    addMember: (p) => void save(null, (c) => api.addMember(c, p)),
+    removeMember: (id) => void save((s) => ({ members: s.members.filter((m) => m.id !== id) }), (c) => api.removeMember(c, id)),
+
+    addResource: (r) => void save(null, (c) => api.addResource(c, r)),
+    removeResource: (id) => void save((s) => ({ resources: s.resources.filter((r) => r.id !== id) }), (c) => api.removeResource(c, id)),
+
+    resetDemo: () => void handle(api.resetDemo()),
+  };
+});

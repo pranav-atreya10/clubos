@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EyeOff, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
-import type { Member } from "@/lib/types";
+import type { Member, Role } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import { Page, PageHeader, Card, Chips, Empty } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
@@ -42,15 +42,26 @@ function MemberModal({
         <div className="flex flex-wrap gap-2 text-sm text-muted">
           <span>Grade {live.grade}</span>·<span>{live.email}</span>
         </div>
-        <label className="block">
-          <Label>Role in club</Label>
-          <Input
-            disabled={!canEdit}
-            value={live.title}
-            onChange={(e) => s.updateMember(live.id, { title: e.target.value, isOfficer: e.target.value.trim().toLowerCase() !== "member" })}
-          />
-        </label>
-        {ratings && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <Label hint={canEdit ? "What they can do" : undefined}>Account type</Label>
+            <Select disabled={!canEdit} value={live.role} onChange={(e) => s.setMemberRole(live.id, e.target.value as Role)}>
+              <option value="member">Member</option>
+              <option value="admin">Officer</option>
+              <option value="advisor">Advisor</option>
+            </Select>
+          </label>
+          <label className="block">
+            <Label hint="e.g. President">Title</Label>
+            <Input disabled={!canEdit} value={live.title} onChange={(e) => s.updateMember(live.id, { title: e.target.value })} />
+          </label>
+        </div>
+        {!live.hasAccount && (
+          <p className="rounded-xl bg-bg-subtle px-3 py-2 text-xs text-muted">
+            {live.name.split(" ")[0]} hasn’t signed in yet. When they join with the invite code using {live.email || "the same email"}, this profile becomes theirs.
+          </p>
+        )}
+        {ratings && live.role !== "advisor" && (
         <>
         <div>
           <Label hint="Leaders only">Leadership rating</Label>
@@ -74,7 +85,7 @@ function MemberModal({
         </>
         )}
         <div className="flex items-center justify-between gap-3 border-t border-line pt-5">
-          {ratings ? (
+          {ratings && live.role !== "advisor" ? (
           <Button
             variant={live.boardCandidate ? "accent" : "secondary"}
             disabled={!canRate}
@@ -99,7 +110,7 @@ function MemberModal({
             </Button>
           )}
         </div>
-        {ratings && (
+        {ratings && live.role !== "advisor" && (
           <div className="max-h-64 overflow-y-auto border-t border-line pt-5">
             <History title="Rating history" items={live.ratingHistory} empty="Not rated yet." />
           </div>
@@ -175,7 +186,7 @@ export default function MembersPage() {
       if (q && !m.name.toLowerCase().includes(q.toLowerCase())) return false;
       if (filter === "officers") return m.isOfficer;
       if (filter === "candidates") return m.boardCandidate;
-      if (filter === "unrated") return m.rating === null;
+      if (filter === "unrated") return m.rating === null && m.role !== "advisor";
       return true;
     });
     return f.sort((a, b) =>
@@ -188,7 +199,7 @@ export default function MembersPage() {
   }, [members, filter, sort, q]);
 
   const open = members.find((m) => m.id === openId);
-  const rated = members.filter((m) => m.rating !== null);
+  const rated = members.filter((m) => m.rating !== null && m.role !== "advisor");
   const avg = rated.length ? rated.reduce((n, m) => n + m.rating!, 0) / rated.length : 0;
 
   return (
@@ -267,15 +278,28 @@ export default function MembersPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{m.name}</p>
                       <p className="truncate text-xs text-muted">
-                        Grade {m.grade}
+                        {m.role === "advisor" ? "Advisor" : `Grade ${m.grade}`}
+                        {!m.hasAccount && " · hasn’t joined yet"}
                         {ratings && m.ratingNote && ` · ${m.ratingNote}`}
                       </p>
                     </div>
                   </div>
                   <div className={ratings ? "hidden md:block" : "block"}>
-                    {m.isOfficer ? <Badge>{m.title}</Badge> : <span className="text-sm text-muted">Member</span>}
+                    {m.role === "advisor" ? (
+                      <Badge tone="accent">Advisor</Badge>
+                    ) : m.isOfficer ? (
+                      <Badge>{m.title}</Badge>
+                    ) : (
+                      <span className="text-sm text-muted">Member</span>
+                    )}
                   </div>
-                  {ratings && (
+                  {ratings && m.role === "advisor" && (
+                    <>
+                      <span className="hidden text-xs text-faint md:block">Not rated</span>
+                      <span className="hidden md:block" />
+                    </>
+                  )}
+                  {ratings && m.role !== "advisor" && (
                   <>
                   <div className="col-span-2 md:col-span-1" onClick={(e) => e.stopPropagation()}>
                     <RatingBar size="sm" value={m.rating} readOnly={!canRate} onChange={(v) => setRating(m.id, v)} />

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, Lock, Menu, X } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
 import { useClub } from "@/lib/store";
 import { clerkEnabled } from "@/lib/clerk";
 import { cn } from "@/lib/cn";
@@ -12,13 +13,53 @@ import { featureForPath, FEATURES } from "@/lib/features";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import { ClerkIdentity, DemoIdentity, RoleSwitch } from "./identity";
+import { ClubSwitcher } from "./club-switcher";
+import { Onboarding } from "./onboarding";
 
-function useHydrated() {
-  const [ready, setReady] = useState(false);
+/** Loads the club from the database, then keeps it fresh so changes from other people show up. */
+function useClubData() {
+  const status = useClub((s) => s.status);
   useEffect(() => {
-    Promise.resolve(useClub.persist.rehydrate()).then(() => setReady(true));
+    const { load, refresh } = useClub.getState();
+    void load();
+    const typing = () => {
+      const el = document.activeElement;
+      return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
+    };
+    const tick = () => {
+      if (document.visibilityState === "visible" && !typing()) void refresh();
+    };
+    const id = setInterval(tick, 20_000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
-  return ready;
+  return status;
+}
+
+function SaveError() {
+  const error = useClub((s) => s.error);
+  const dismiss = useClub((s) => s.dismissError);
+  const status = useClub((s) => s.status);
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(dismiss, 7000);
+    return () => clearTimeout(t);
+  }, [error, dismiss]);
+  if (!error || status !== "ready") return null;
+  return (
+    <div role="alert" className="fixed right-4 bottom-4 left-4 z-[60] mx-auto flex max-w-md items-start gap-3 rounded-2xl border border-line bg-surface p-4 shadow-card sm:left-auto">
+      <span className="mt-0.5 size-2 shrink-0 rounded-full bg-danger" />
+      <p className="flex-1 text-sm">{error}</p>
+      <button onClick={dismiss} aria-label="Dismiss" className="text-faint hover:text-fg">
+        <X className="size-4" />
+      </button>
+    </div>
+  );
 }
 
 const panel = "rounded-2xl border border-line bg-surface";
@@ -27,7 +68,6 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const role = useClub((s) => s.role);
   const wired = useClub((s) => s.wired);
-  const club = useClub((s) => s.settings.clubName);
   const features = useClub((s) => s.settings.features);
 
   const pendingApprovals = wired.filter((w) => w.status === "pending").length;
@@ -40,8 +80,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <Link href="/" onClick={onNavigate} className="inline-flex">
           <Logo />
         </Link>
-        <p className="mt-4 text-xs text-faint">Your club</p>
-        <p className="truncate text-[17px] font-medium tracking-tight">{club}</p>
+        <ClubSwitcher />
       </div>
 
       <nav aria-label="Main" className={cn(panel, "no-scrollbar flex-1 overflow-y-auto p-2")} data-lenis-prevent>
@@ -122,10 +161,12 @@ function AttendanceLink() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const ready = useHydrated();
+  const status = useClubData();
+  const ready = status === "ready";
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const role = useClub((s) => s.role);
+  const clubId = useClub((s) => s.clubId);
   const clubName = useClub((s) => s.settings.clubName);
   const features = useClub((s) => s.settings.features);
   const offFeature = featureForPath(pathname);
@@ -134,7 +175,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-bg">
       {/* Desktop: floating sidebar panels */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[276px] p-3 lg:block">{ready && <Sidebar />}</aside>
+      {status !== "no-club" && (
+        <aside className="fixed inset-y-0 left-0 z-30 hidden w-[276px] p-3 lg:block">{ready && <Sidebar />}</aside>
+      )}
 
       {/* Mobile top bar */}
       <div className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-bg/85 px-4 backdrop-blur-md lg:hidden">
@@ -159,13 +202,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className="lg:pl-[276px]">
-        {ready && !clerkEnabled && (
+      {status === "no-club" && (
+        <div className="hidden items-center justify-between px-8 pt-6 lg:flex">
+          <Logo />
+          {clerkEnabled && <UserButton />}
+        </div>
+      )}
+      <main className={cn(status !== "no-club" && "lg:pl-[276px]")}>
+        {(ready || status === "no-club") && !clerkEnabled && (
           <div className="sticky top-14 z-20 flex justify-center px-4 pt-3 lg:top-0">
             <RoleSwitch />
           </div>
         )}
-        {!ready ? (
+        {status === "no-club" ? (
+          <Onboarding />
+        ) : status === "signed-out" || status === "error" ? (
+          <div className="mx-auto flex max-w-md flex-col items-center px-6 pt-32 text-center">
+            <h1 className="font-display text-4xl">{status === "signed-out" ? "Please sign in" : "Couldn’t load your club"}</h1>
+            <p className="mt-2 text-sm text-muted">
+              {status === "signed-out" ? "Your session ended." : "The server didn’t respond. Check your connection and try again."}
+            </p>
+            {status === "signed-out" ? (
+              <Link href="/sign-in" className="mt-6 text-sm font-medium text-accent-text underline-offset-4 hover:underline">Sign in</Link>
+            ) : (
+              <button onClick={() => void useClub.getState().load()} className="mt-6 text-sm font-medium text-accent-text underline-offset-4 hover:underline">
+                Try again
+              </button>
+            )}
+          </div>
+        ) : !ready ? (
           <div className="mx-auto max-w-6xl px-4 pt-16 sm:px-8 lg:px-12">
             <div className="h-12 w-56 animate-pulse rounded-xl bg-surface-2" />
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -191,18 +256,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         ) : canSee(role, pathname) ? (
-          <div key={`${pathname}-${role}`}>{children}</div>
+          <div key={`${pathname}-${role}-${clubId}`}>{children}</div>
         ) : (
           <div className="mx-auto flex max-w-md flex-col items-center px-6 pt-32 text-center">
             <Lock className="mb-4 size-6 text-faint" />
-            <h1 className="font-display text-4xl">Officers only</h1>
-            <p className="mt-2 text-sm text-muted">This part of {clubName} is only visible to club leaders.</p>
+            <h1 className="font-display text-4xl">{pathname.startsWith("/app/approvals") ? "For the advisor" : "Officers only"}</h1>
+            <p className="mt-2 text-sm text-muted">
+              {pathname.startsWith("/app/approvals")
+                ? `Only ${clubName}'s advisor approves AM Wired messages.`
+                : `This part of ${clubName} is only visible to club leaders.`}
+            </p>
             <Link href="/app" className="mt-6 text-sm font-medium text-accent-text underline-offset-4 hover:underline">
               Back to home
             </Link>
           </div>
         )}
       </main>
+      <SaveError />
     </div>
   );
 }

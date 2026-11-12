@@ -17,8 +17,13 @@ export type Member = {
   name: string;
   email: string;
   grade: 9 | 10 | 11 | 12;
-  title: string; // "President", "Officer", "Member", ...
+  title: string; // "President", "Treasurer", "Member", ...
+  /** Permission level in this club. */
+  role: Role;
+  /** Same as role === "admin". */
   isOfficer: boolean;
+  /** Whether this person has signed in and joined (vs. just added by an officer). */
+  hasAccount: boolean;
   joined: string; // ISO date
   rating: number | null; // leaders-only, out of 10
   ratingNote: string;
@@ -99,4 +104,28 @@ export type ClubSettings = {
   meetingRoom: string;
   wiredTemplate: string;
   features: Features;
+};
+
+export type ClubSummary = { id: string; name: string; role: Role };
+
+/** Everything the app needs for one person in one club — already filtered to what they may see. */
+export type ClubData = {
+  id: string;
+  role: Role;
+  meId: string;
+  /** Only officers get the invite code. */
+  inviteCode: string | null;
+  settings: ClubSettings;
+  members: Member[];
+  events: ClubEvent[];
+  wired: WiredWeek[];
+  announcements: Announcement[];
+  tasks: Task[];
+  resources: Resource[];
+};
+
+export type Snapshot = {
+  viewer: { userId: string; name: string; demo: boolean };
+  clubs: ClubSummary[];
+  club: ClubData | null;
 };

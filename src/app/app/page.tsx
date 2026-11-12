@@ -91,7 +91,8 @@ export default function HomePage() {
   const wired = useClub((s) => s.wired);
   const setTaskStatus = useClub((s) => s.setTaskStatus);
   const on = useClub((s) => s.settings.features);
-  const me = members.find((m) => m.name === name);
+  const meId = useClub((s) => s.meId);
+  const me = members.find((m) => m.id === meId);
 
   const today = daysFromToday(0);
   const upcoming = events.filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));

@@ -99,12 +99,12 @@ export default function TasksPage() {
   const s = useClub();
   const role = s.role;
   const isAdmin = role === "admin";
-  const me = s.members.find((m) => m.name === s.userName);
+  const me = s.members.find((m) => m.id === s.meId);
   const [scope, setScope] = useState<"all" | "mine">("all");
   const [open, setOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [assigneeId, setAssigneeId] = useState(s.members[0]?.id ?? "");
+  const [assigneeId, setAssigneeId] = useState(s.members.find((m) => m.role !== "advisor")?.id ?? "");
   const [due, setDue] = useState(daysFromToday(7));
 
   // Members only ever see their own tasks. Officers can switch; the advisor sees everything.
@@ -196,7 +196,7 @@ export default function TasksPage() {
             <label className="block">
               <Label>Who</Label>
               <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-                {s.members.map((m) => (
+                {s.members.filter((m) => m.role !== "advisor").map((m) => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </Select>
