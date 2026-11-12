@@ -15,6 +15,10 @@ const LOCK_MINUTES = 5;
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
+/** Answer within 25s even if the database is stuck, instead of spinning forever. */
+const withTimeout = <T,>(p: Promise<T>) =>
+  Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Timed out")), 25_000))]);
+
 async function leaveDemo() {
   const jar = await cookies();
   jar.delete(DEMO_USER_COOKIE);
@@ -22,6 +26,10 @@ async function leaveDemo() {
 }
 
 export async function signUp(input: { name: string; email: string; password: string }): Promise<AuthResult> {
+  return withTimeout(signUpInner(input)).catch(() => ({ ok: false as const, error: "The server is slow right now. Please try again." }));
+}
+
+async function signUpInner(input: { name: string; email: string; password: string }): Promise<AuthResult> {
   try {
     const name = str(input?.name).trim();
     const email = str(input?.email).trim().toLowerCase();
@@ -49,6 +57,10 @@ export async function signUp(input: { name: string; email: string; password: str
 }
 
 export async function signIn(input: { email: string; password: string }): Promise<AuthResult> {
+  return withTimeout(signInInner(input)).catch(() => ({ ok: false as const, error: "The server is slow right now. Please try again." }));
+}
+
+async function signInInner(input: { email: string; password: string }): Promise<AuthResult> {
   try {
     const email = str(input?.email).trim().toLowerCase();
     const password = str(input?.password);

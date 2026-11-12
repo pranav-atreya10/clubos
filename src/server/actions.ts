@@ -18,9 +18,12 @@ export type Result = { ok: true; snapshot: Snapshot } | { ok: false; error: stri
 
 class Invalid extends Error {}
 
+const ACTION_TIMEOUT_MS = 25_000;
+
 async function run(fn: () => Promise<Snapshot>): Promise<Result> {
   try {
-    return { ok: true, snapshot: await fn() };
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out")), ACTION_TIMEOUT_MS));
+    return { ok: true, snapshot: await Promise.race([fn(), timeout]) };
   } catch (e) {
     if (e instanceof NotAllowed || e instanceof Invalid) return { ok: false, error: e.message };
     console.error(e);

@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
@@ -27,10 +27,22 @@ async function connect(): Promise<DB> {
     const parsed = new URL(url);
     const ssl = parsed.searchParams.get("sslmode") === "require" || parsed.hostname.endsWith("supabase.com") ? "require" : undefined;
     parsed.search = "";
-    // prepare:false keeps Supabase's connection pooler (port 6543) happy.
-    const client = postgres(parsed.toString(), { prepare: false, max: 5, ...(ssl ? { ssl } : {}) });
+    // Supabase's transaction pooler (6543) can stall multi-step saves. The same pooler's
+    // session mode (5432) behaves like a normal Postgres connection, so use that.
+    if (parsed.hostname.endsWith("pooler.supabase.com") && parsed.port === "6543") parsed.port = "5432";
+    const client = postgres(parsed.toString(), {
+      prepare: false,
+      max: 3,
+      idle_timeout: 20, // give pooler slots back quickly between requests
+      connect_timeout: 10,
+      onnotice: () => {}, // "already exists, skipping" notices aren't useful in logs
+      ...(ssl ? { ssl } : {}),
+    });
     const db = drizzle(client, { schema });
-    await migrate(db, { migrationsFolder });
+    // Only run migrations when the database is behind (saves work on every cold start).
+    const expected = (JSON.parse(readFileSync(path.join(migrationsFolder, "meta", "_journal.json"), "utf8")) as { entries: unknown[] }).entries.length;
+    const applied = await client`select count(*)::int as n from drizzle.__drizzle_migrations`.then((r) => Number(r[0]?.n ?? 0)).catch(() => 0);
+    if (applied < expected) await migrate(db, { migrationsFolder });
     return db;
   }
 
@@ -48,9 +60,15 @@ async function connect(): Promise<DB> {
   return db;
 }
 
+const CONNECT_TIMEOUT_MS = 20_000;
+
 export function getDb(): Promise<DB> {
   if (!g.__clubosDb) {
-    g.__clubosDb = connect().catch((e) => {
+    // Never let a stuck connection hang every request on this server: give up and retry next time.
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Database took too long to connect")), CONNECT_TIMEOUT_MS).unref?.(),
+    );
+    g.__clubosDb = Promise.race([connect(), timeout]).catch((e) => {
       g.__clubosDb = undefined;
       throw e;
     });
