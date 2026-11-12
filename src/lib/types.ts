@@ -1,3 +1,5 @@
+import type { Features } from "./features";
+
 export type Role = "admin" | "advisor" | "member";
 
 export type Member = {
@@ -84,4 +86,5 @@ export type ClubSettings = {
   meetingTime: string;
   meetingRoom: string;
   wiredTemplate: string;
+  features: Features;
 };

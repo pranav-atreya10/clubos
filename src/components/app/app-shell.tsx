@@ -8,6 +8,7 @@ import { useClub } from "@/lib/store";
 import { clerkEnabled } from "@/lib/clerk";
 import { cn } from "@/lib/cn";
 import { GROUPS, NAV, canSee } from "./nav";
+import { featureForPath, FEATURES } from "@/lib/features";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import { ClerkIdentity, DemoIdentity, RoleSwitch } from "./identity";
@@ -27,6 +28,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const role = useClub((s) => s.role);
   const wired = useClub((s) => s.wired);
   const club = useClub((s) => s.settings.clubName);
+  const features = useClub((s) => s.settings.features);
 
   const pendingApprovals = wired.filter((w) => w.status === "pending").length;
   const wiredAttention = wired.filter((w) => w.status === "changes" || w.status === "approved").length;
@@ -44,8 +46,12 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav aria-label="Main" className={cn(panel, "no-scrollbar flex-1 overflow-y-auto p-2")} data-lenis-prevent>
         {GROUPS.map((g) => {
-          const items = NAV.filter((n) => n.group === g && n.roles.includes(role));
-          if (!items.length) return null;
+          const items = NAV.filter((n) => {
+            const feat = featureForPath(n.href);
+            return n.group === g && n.roles.includes(role) && (!feat || features[feat]);
+          });
+          const showAttendance = g === "Leaders" && role !== "member" && features.attendance;
+          if (!items.length && !showAttendance) return null;
           return (
             <div key={g} className="mb-2 last:mb-0">
               <p className="px-2.5 pt-2 pb-1.5 text-xs text-faint">{g}</p>
@@ -80,7 +86,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   </Link>
                 );
               })}
-              {g === "Leaders" && role !== "member" && <AttendanceLink />}
+              {showAttendance && <AttendanceLink />}
             </div>
           );
         })}
@@ -121,6 +127,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const role = useClub((s) => s.role);
   const clubName = useClub((s) => s.settings.clubName);
+  const features = useClub((s) => s.settings.features);
+  const offFeature = featureForPath(pathname);
+  const turnedOff = offFeature && !features[offFeature] ? FEATURES.find((f) => f.key === offFeature) : null;
 
   return (
     <div className="min-h-screen bg-bg">
@@ -164,6 +173,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div key={i} className="h-28 animate-pulse rounded-2xl bg-surface" />
               ))}
             </div>
+          </div>
+        ) : turnedOff ? (
+          <div className="mx-auto flex max-w-md flex-col items-center px-6 pt-32 text-center">
+            <turnedOff.icon className="mb-4 size-6 text-faint" />
+            <h1 className="font-display text-4xl">{turnedOff.label} is turned off</h1>
+            <p className="mt-2 text-sm text-muted">
+              {role === "admin"
+                ? "Your club isn't using this feature. You can turn it back on in Settings."
+                : `${clubName} isn't using this feature right now.`}
+            </p>
+            <Link
+              href={role === "admin" ? "/app/settings#features" : "/app"}
+              className="mt-6 text-sm font-medium text-accent-text underline-offset-4 hover:underline"
+            >
+              {role === "admin" ? "Open Settings" : "Back to home"}
+            </Link>
           </div>
         ) : canSee(role, pathname) ? (
           <div key={`${pathname}-${role}`}>{children}</div>

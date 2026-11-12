@@ -50,6 +50,7 @@ function WiredInner() {
   const editable = w.status === "draft" || w.status === "changes";
   const words = w.message.trim() ? w.message.trim().split(/\s+/).length : 0;
   const seconds = Math.round(words / 2.6);
+  const calendarOn = s.settings.features.calendar;
   const weekEvents = eventsInWeek(s.events, w.weekOf);
   const hasRace = weekEvents.some((e) => e.type === "race");
 
@@ -132,7 +133,7 @@ function WiredInner() {
                     onClick={() => s.wiredGenerate(w.id)}
                     className="inline-flex items-center gap-1.5 font-medium text-accent-text hover:underline underline-offset-4"
                   >
-                    <Wand2 className="size-3.5" /> Auto-fill from calendar
+                    <Wand2 className="size-3.5" /> {calendarOn ? "Auto-fill from calendar" : "Auto-fill draft"}
                   </button>
                 )}
               </div>
@@ -190,7 +191,8 @@ function WiredInner() {
 
           <div className="my-8 h-px bg-line" />
 
-          <div className="grid gap-8 sm:grid-cols-2">
+          <div className={calendarOn ? "grid gap-8 sm:grid-cols-2" : ""}>
+            {calendarOn && (
             <div>
               <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">On the calendar this week</p>
               {weekEvents.length === 0 ? (
@@ -212,6 +214,7 @@ function WiredInner() {
                 <p className="mt-3 text-xs text-faint">No race this week — you can skip if there’s nothing to announce.</p>
               )}
             </div>
+            )}
             <History items={w.history} />
           </div>
         </div>

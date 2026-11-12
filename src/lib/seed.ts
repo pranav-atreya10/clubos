@@ -7,6 +7,7 @@ import type {
   Task,
   WiredWeek,
 } from "./types";
+import { ALL_ON } from "./features";
 import { addDays, daysFromToday, startOfWeek, toISODate } from "./dates";
 
 export const DEFAULT_TEMPLATE =
@@ -22,6 +23,7 @@ export const seedSettings = (): ClubSettings => ({
   meetingTime: "3:15 PM",
   meetingRoom: "Room 214",
   wiredTemplate: DEFAULT_TEMPLATE,
+  features: { ...ALL_ON },
 });
 
 const m = (

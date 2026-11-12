@@ -16,7 +16,7 @@ import { RatingBar } from "@/components/app/rating";
 type Filter = "all" | "officers" | "candidates" | "unrated";
 type Sort = "rating" | "name" | "grade";
 
-function MemberModal({ m, onClose, canEdit }: { m: Member; onClose: () => void; canEdit: boolean }) {
+function MemberModal({ m, onClose, canEdit, ratings }: { m: Member; onClose: () => void; canEdit: boolean; ratings: boolean }) {
   const s = useClub();
   const live = s.members.find((x) => x.id === m.id) ?? m;
   return (
@@ -33,6 +33,8 @@ function MemberModal({ m, onClose, canEdit }: { m: Member; onClose: () => void; 
             onChange={(e) => s.updateMember(live.id, { title: e.target.value, isOfficer: e.target.value.trim().toLowerCase() !== "member" })}
           />
         </label>
+        {ratings && (
+        <>
         <div>
           <Label hint="Leaders only">Leadership rating</Label>
           <RatingBar value={live.rating} readOnly={!canEdit} onChange={(v) => s.setRating(live.id, v)} />
@@ -47,7 +49,10 @@ function MemberModal({ m, onClose, canEdit }: { m: Member; onClose: () => void; 
             placeholder="Why this rating? e.g. “Led the pit-stop drill without being asked.”"
           />
         </label>
+        </>
+        )}
         <div className="flex items-center justify-between gap-3 border-t border-line pt-5">
+          {ratings ? (
           <Button
             variant={live.boardCandidate ? "accent" : "secondary"}
             disabled={!canEdit}
@@ -56,6 +61,9 @@ function MemberModal({ m, onClose, canEdit }: { m: Member; onClose: () => void; 
             <Star className={cn("size-4", live.boardCandidate && "fill-current")} />
             {live.boardCandidate ? "Board candidate" : "Mark as board candidate"}
           </Button>
+          ) : (
+            <span />
+          )}
           {canEdit && (
             <Button
               variant="danger"
@@ -123,9 +131,13 @@ export default function MembersPage() {
   const role = useClub((s) => s.role);
   const setRating = useClub((s) => s.setRating);
   const toggleCandidate = useClub((s) => s.toggleCandidate);
+  const ratings = useClub((s) => s.settings.features.ratings);
   const canEdit = role === "admin";
-  const [filter, setFilter] = useState<Filter>("all");
-  const [sort, setSort] = useState<Sort>("rating");
+  const [pickedFilter, setFilter] = useState<Filter>("all");
+  const [pickedSort, setSort] = useState<Sort>("rating");
+  // With ratings turned off, rating-based filters and sorting fall back to plain ones.
+  const filter: Filter = !ratings && (pickedFilter === "candidates" || pickedFilter === "unrated") ? "all" : pickedFilter;
+  const sort: Sort = !ratings && pickedSort === "rating" ? "name" : pickedSort;
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -155,7 +167,7 @@ export default function MembersPage() {
     <Page>
       <PageHeader
         title="Members"
-        subtitle={`${members.length} members · average rating ${avg.toFixed(1)}/10`}
+        subtitle={ratings ? `${members.length} members · average rating ${avg.toFixed(1)}/10` : `${members.length} members · ${members.filter((m) => m.isOfficer).length} officers`}
         actions={
           canEdit && (
             <Button variant="primary" onClick={() => setAdding(true)}>
@@ -165,10 +177,12 @@ export default function MembersPage() {
         }
       />
 
+      {ratings && (
       <div data-reveal className="mb-6 flex items-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent-text">
         <EyeOff className="size-4 shrink-0" />
         Ratings and notes are private. Only officers and the advisor can see them — members never do.
       </div>
+      )}
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Chips
@@ -176,9 +190,9 @@ export default function MembersPage() {
           onChange={setFilter}
           options={[
             { value: "all", label: "Everyone", count: members.length },
-            { value: "candidates", label: "Board candidates", count: members.filter((m) => m.boardCandidate).length },
+            ...(ratings ? [{ value: "candidates" as const, label: "Board candidates", count: members.filter((m) => m.boardCandidate).length }] : []),
             { value: "officers", label: "Officers", count: members.filter((m) => m.isOfficer).length },
-            { value: "unrated", label: "Not rated", count: members.filter((m) => m.rating === null).length },
+            ...(ratings ? [{ value: "unrated" as const, label: "Not rated", count: members.filter((m) => m.rating === null).length }] : []),
           ]}
         />
         <div data-reveal className="flex gap-2">
@@ -187,7 +201,7 @@ export default function MembersPage() {
             <Input aria-label="Search members" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="rounded-full pl-9" />
           </div>
           <Select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="w-auto rounded-full">
-            <option value="rating">Top rated</option>
+            {ratings && <option value="rating">Top rated</option>}
             <option value="name">Name</option>
             <option value="grade">Grade</option>
           </Select>
@@ -198,11 +212,11 @@ export default function MembersPage() {
         <Empty title="No one here yet" body="Try a different filter." />
       ) : (
         <Card className="overflow-hidden">
-          <div className="hidden grid-cols-[1fr_120px_200px_48px] gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid">
+          <div className={cn("hidden gap-4 border-b border-line px-5 py-3 text-xs font-medium text-muted md:grid", ratings ? "grid-cols-[1fr_120px_200px_48px]" : "grid-cols-[1fr_160px]")}>
             <span>Member</span>
             <span>Role</span>
-            <span>Rating</span>
-            <span className="sr-only">Board candidate</span>
+            {ratings && <span>Rating</span>}
+            {ratings && <span className="sr-only">Board candidate</span>}
           </div>
           <ul className="divide-y divide-line">
             {list.map((m, i) => (
@@ -212,24 +226,29 @@ export default function MembersPage() {
                   tabIndex={0}
                   onClick={() => setOpenId(m.id)}
                   onKeyDown={(e) => e.key === "Enter" && setOpenId(m.id)}
-                  className="grid cursor-pointer grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-surface-2 md:grid-cols-[1fr_120px_200px_48px]"
+                  className={cn(
+                    "grid cursor-pointer grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-surface-2",
+                    ratings ? "md:grid-cols-[1fr_120px_200px_48px]" : "md:grid-cols-[1fr_160px]",
+                  )}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    {sort === "rating" && filter === "all" && !q && (
+                    {ratings && sort === "rating" && filter === "all" && !q && (
                       <span className="w-5 text-right text-xs text-faint tabular-nums">{i + 1}</span>
                     )}
-                    <Avatar name={m.name} accent={m.boardCandidate} />
+                    <Avatar name={m.name} accent={ratings && m.boardCandidate} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{m.name}</p>
                       <p className="truncate text-xs text-muted">
                         Grade {m.grade}
-                        {m.ratingNote && ` · ${m.ratingNote}`}
+                        {ratings && m.ratingNote && ` · ${m.ratingNote}`}
                       </p>
                     </div>
                   </div>
-                  <div className="hidden md:block">
+                  <div className={ratings ? "hidden md:block" : "block"}>
                     {m.isOfficer ? <Badge>{m.title}</Badge> : <span className="text-sm text-muted">Member</span>}
                   </div>
+                  {ratings && (
+                  <>
                   <div className="col-span-2 md:col-span-1" onClick={(e) => e.stopPropagation()}>
                     <RatingBar size="sm" value={m.rating} readOnly={!canEdit} onChange={(v) => setRating(m.id, v)} />
                   </div>
@@ -248,6 +267,8 @@ export default function MembersPage() {
                   >
                     <Star className={cn("size-4", m.boardCandidate && "fill-current")} />
                   </button>
+                  </>
+                  )}
                 </div>
               </li>
             ))}
@@ -255,7 +276,7 @@ export default function MembersPage() {
         </Card>
       )}
 
-      {open && <MemberModal m={open} canEdit={canEdit} onClose={() => setOpenId(null)} />}
+      {open && <MemberModal m={open} canEdit={canEdit} ratings={ratings} onClose={() => setOpenId(null)} />}
       <AddMember open={adding} onClose={() => setAdding(false)} />
     </Page>
   );

@@ -34,7 +34,7 @@ export default function AnnouncementsPage() {
         }
       />
 
-      {isAdmin && (
+      {isAdmin && s.settings.features.wired && (
         <Link
           href="/app/wired"
           data-reveal

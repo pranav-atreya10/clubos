@@ -41,7 +41,7 @@ export function WeekList({
                   )}
                 </p>
                 <p className={cn("mt-0.5 truncate text-xs", w.message ? "text-muted" : "text-faint italic")}>
-                  {w.status === "skipped" ? "No announcement" : w.message || "Empty — auto-fill from calendar"}
+                  {w.status === "skipped" ? "No announcement" : w.message || "Empty — tap to write or auto-fill"}
                 </p>
               </div>
               <Badge tone={meta.tone} dot>

@@ -24,6 +24,7 @@ import {
 } from "./seed";
 import { buildDraft } from "./wired";
 import { addDays, fromISODate, toISODate } from "./dates";
+import { ALL_ON, type FeatureKey } from "./features";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const nowISO = () => new Date().toISOString();
@@ -50,6 +51,7 @@ type State = Data & {
   setIdentity: (role: Role, name: string) => void;
 
   updateSettings: (p: Partial<ClubSettings>) => void;
+  setFeature: (key: FeatureKey, on: boolean) => void;
 
   wiredEdit: (id: string, message: string) => void;
   wiredGenerate: (id: string) => void;
@@ -129,6 +131,8 @@ export const useClub = create<State>()(
         setIdentity: (role, userName) => set({ role, userName }),
 
         updateSettings: (p) => set((s) => ({ settings: { ...s.settings, ...p } })),
+        setFeature: (key, on) =>
+          set((s) => ({ settings: { ...s.settings, features: { ...s.settings.features, [key]: on } } })),
 
         wiredEdit: (id, message) => {
           const w = get().wired.find((x) => x.id === id);
@@ -141,7 +145,13 @@ export const useClub = create<State>()(
           const { settings, events, wired } = get();
           const w = wired.find((x) => x.id === id);
           if (!w) return;
-          patchWeek(id, { message: buildDraft(settings, events, w.weekOf), status: "draft" }, "Auto-filled draft from calendar");
+          // Without the calendar, drafts use the usual meeting day/time/room from Settings.
+          const useCalendar = settings.features.calendar;
+          patchWeek(
+            id,
+            { message: buildDraft(settings, useCalendar ? events : [], w.weekOf), status: "draft" },
+            useCalendar ? "Auto-filled draft from calendar" : "Auto-filled draft",
+          );
         },
         wiredSubmit: (id) =>
           patchWeek(id, { status: "pending", advisorNote: "" }, `Sent to ${get().settings.advisorName} for approval`),
@@ -223,6 +233,19 @@ export const useClub = create<State>()(
       name: "clubos-demo-v1",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
+      // Older saved demos don't have feature switches yet — fill in "all on".
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<State>;
+        return {
+          ...current,
+          ...p,
+          settings: {
+            ...current.settings,
+            ...p.settings,
+            features: { ...ALL_ON, ...p.settings?.features },
+          },
+        };
+      },
     },
   ),
 );

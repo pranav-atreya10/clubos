@@ -90,6 +90,7 @@ export default function HomePage() {
   const announcements = useClub((s) => s.announcements);
   const wired = useClub((s) => s.wired);
   const setTaskStatus = useClub((s) => s.setTaskStatus);
+  const on = useClub((s) => s.settings.features);
   const me = members.find((m) => m.name === name);
 
   const today = daysFromToday(0);
@@ -101,6 +102,10 @@ export default function HomePage() {
   const sortedAnn = [...announcements].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
   const pending = wired.filter((w) => w.status === "pending");
   const first = name.replace(/^(Mr|Ms|Mrs|Dr)\.\s*/, "").split(" ")[0];
+  const showAnnouncements = on.announcements;
+  const showSide = role === "advisor" || on.tasks;
+  const statCount = 1 + Number(on.calendar) + Number(on.tasks) + Number(on.ratings);
+  const statCols = ["sm:grid-cols-1", "sm:grid-cols-2", "sm:grid-cols-3", "sm:grid-cols-4"][statCount - 1];
   const memberName = (id: string) => members.find((m) => m.id === id)?.name ?? "Unassigned";
 
   return (
@@ -123,9 +128,9 @@ export default function HomePage() {
       </header>
 
       <div className="space-y-12">
-        {role === "admin" && <WiredCallout />}
+        {role === "admin" && on.wired && <WiredCallout />}
 
-        {role === "advisor" && (
+        {role === "advisor" && on.wired && (
           <Card className={cn("flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between", pending.length > 0 && "border-transparent bg-accent text-accent-fg")}>
             <div className="flex items-start gap-4">
               <span className={cn("inline-flex size-10 shrink-0 items-center justify-center rounded-full", pending.length ? "bg-white/15" : "bg-accent-soft text-accent-text")}>
@@ -150,7 +155,7 @@ export default function HomePage() {
           </Card>
         )}
 
-        {role === "member" && nextMeeting && (
+        {role === "member" && on.calendar && nextMeeting && (
           <Card className="relative overflow-hidden border-transparent bg-fg p-7 text-bg">
             <Sparkles className="absolute top-6 right-6 size-5 opacity-40" />
             <p className="text-xs font-medium tracking-wide uppercase opacity-60">Next meeting · {relativeDay(nextMeeting.date)}</p>
@@ -162,15 +167,24 @@ export default function HomePage() {
           </Card>
         )}
 
-        {role !== "member" && (
-          <section className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+        {role !== "member" && statCount > 1 && (
+          <section className={cn("grid grid-cols-2 gap-x-6 gap-y-6", statCols)}>
             <Stat label="Members" value={members.length} sub={`${members.filter((m) => m.isOfficer).length} officers`} />
-            <Stat label="Next meeting" value={nextMeeting ? Math.max(0, daysUntil(nextMeeting.date)) : 0} suffix=" days" sub={nextMeeting?.location} />
-            <Stat label="Open tasks" value={openTasks.length} sub={`${openTasks.filter((t) => t.due < today).length} overdue`} />
-            <Stat label="Board candidates" value={members.filter((m) => m.boardCandidate).length} sub={nextRace ? `Next race: ${nextRace.title}` : undefined} />
+            {on.calendar && (
+              <Stat label="Next meeting" value={nextMeeting ? Math.max(0, daysUntil(nextMeeting.date)) : 0} suffix=" days" sub={nextMeeting?.location} />
+            )}
+            {on.tasks && <Stat label="Open tasks" value={openTasks.length} sub={`${openTasks.filter((t) => t.due < today).length} overdue`} />}
+            {on.ratings && (
+              <Stat
+                label="Board candidates"
+                value={members.filter((m) => m.boardCandidate).length}
+                sub={on.calendar && nextRace ? `Next race: ${nextRace.title}` : undefined}
+              />
+            )}
           </section>
         )}
 
+        {on.calendar && (
         <section>
           <SectionTitle action={<Link href="/app/calendar" className="text-sm font-medium text-accent-text hover:underline underline-offset-4">View all</Link>}>
             Coming up
@@ -181,8 +195,11 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+        )}
 
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.4fr_1fr] [&>*]:min-w-0">
+        {(showAnnouncements || showSide) && (
+        <div className={cn("grid grid-cols-1 gap-12 [&>*]:min-w-0", showAnnouncements && showSide && "lg:grid-cols-[1.4fr_1fr]")}>
+          {showAnnouncements && (
           <section>
             <SectionTitle action={<Link href="/app/announcements" className="text-sm font-medium text-accent-text hover:underline underline-offset-4">View all</Link>}>
               Announcements
@@ -193,8 +210,9 @@ export default function HomePage() {
               ))}
             </Card>
           </section>
+          )}
 
-          {role !== "advisor" && (
+          {role !== "advisor" && on.tasks && (
             <section>
               <SectionTitle action={<Link href="/app/tasks" className="text-sm font-medium text-accent-text hover:underline underline-offset-4">View all</Link>}>
                 {role === "member" ? "Your tasks" : "Due soon"}
@@ -249,6 +267,11 @@ export default function HomePage() {
             </section>
           )}
         </div>
+        )}
+
+        {role === "member" && !on.calendar && !on.announcements && !on.tasks && (
+          <p data-reveal className="text-sm text-muted">Nothing new right now. Check back after the next meeting.</p>
+        )}
       </div>
     </Page>
   );
