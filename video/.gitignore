@@ -1,2 +1,4 @@
 node_modules
 out
+# Song isn't ours to publish; keep it local.
+public/music.mp3

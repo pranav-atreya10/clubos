@@ -330,7 +330,7 @@ function Music() {
   return (
     <Audio
       src={staticFile("music.mp3")}
-      volume={(f) => interpolate(f, [0, 20, durationInFrames - 45, durationInFrames], [0, 0.8, 0.8, 0], clamp)}
+      volume={(f) => interpolate(f, [0, 20, durationInFrames - 45, durationInFrames], [0, 0.7, 0.7, 0], clamp)}
     />
   );
 }
