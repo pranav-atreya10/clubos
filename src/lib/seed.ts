@@ -16,7 +16,7 @@ export const seedSettings = (): ClubSettings => ({
   clubName: "Velocity Racing Club",
   advisorName: "Mr. Anderson",
   advisorEmail: "anderson@school.edu",
-  wiredEmail: "amwired@school.edu",
+  wiredEmail: "amwired@livingston.org",
   attendanceUrl: "https://example.com/attendance",
   meetingDay: "Wednesday",
   meetingTime: "3:15 PM",
