@@ -1,6 +1,9 @@
 "use client";
 
-import { UserButton, useUser } from "@clerk/nextjs";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { exitDemo, signOut } from "@/server/auth-actions";
 import { useClub } from "@/lib/store";
 import type { Role } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -14,33 +17,39 @@ const ROLES: { v: Role; label: string }[] = [
 
 export const roleLabel = (r: Role) => ROLES.find((x) => x.v === r)!.label;
 
-/** With Clerk: name and picture from Clerk; the role comes from the club (set by officers in Members). */
-export function ClerkIdentity() {
-  const { user } = useUser();
-  const role = useClub((s) => s.role);
-  const hasClub = useClub((s) => s.clubId !== null);
-  return (
-    <div className="flex items-center gap-3 px-2">
-      <UserButton />
-      <div className="min-w-0 leading-tight">
-        <p className="truncate text-sm font-medium">{user?.fullName ?? "…"}</p>
-        {hasClub && <p className="text-xs text-muted">{roleLabel(role)}</p>}
-      </div>
-    </div>
-  );
-}
-
-/** Demo mode: who you are (role is switched from the top bar). */
-export function DemoIdentity() {
+/** Your name, your role in this club, and a way out (sign out, or leave the demo). */
+export function AccountCard() {
+  const router = useRouter();
   const role = useClub((s) => s.role);
   const name = useClub((s) => s.userName);
+  const demo = useClub((s) => s.demo);
+  const hasClub = useClub((s) => s.clubId !== null);
+  const [busy, setBusy] = useState(false);
+  const leave = async () => {
+    setBusy(true);
+    await (demo ? exitDemo() : signOut()).catch(() => null);
+    router.replace(demo ? "/demo" : "/sign-in");
+    router.refresh();
+  };
   return (
     <div className="flex items-center gap-3 px-1">
-      <Avatar name={name} accent={role === "advisor"} />
-      <div className="min-w-0 leading-tight">
+      <Avatar name={name || "?"} accent={role === "advisor"} />
+      <div className="min-w-0 flex-1 leading-tight">
         <p className="truncate text-sm font-medium">{name}</p>
-        <p className="text-xs text-muted">{roleLabel(role)} · demo</p>
+        <p className="text-xs text-muted">
+          {hasClub ? roleLabel(role) : "No club yet"}
+          {demo && " · demo"}
+        </p>
       </div>
+      <button
+        onClick={leave}
+        disabled={busy}
+        title={demo ? "Exit demo" : "Sign out"}
+        aria-label={demo ? "Exit demo" : "Sign out"}
+        className="rounded-full p-2 text-faint transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+      >
+        <LogOut className="size-4" />
+      </button>
     </div>
   );
 }

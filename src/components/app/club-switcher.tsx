@@ -14,6 +14,7 @@ export function ClubSwitcher() {
   const clubId = useClub((s) => s.clubId);
   const clubName = useClub((s) => s.settings.clubName);
   const switchClub = useClub((s) => s.switchClub);
+  const demo = useClub((s) => s.demo);
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -57,6 +58,7 @@ export function ClubSwitcher() {
               <Check className={cn("size-4 text-accent-text", c.id !== clubId && "invisible")} />
             </button>
           ))}
+          {!demo && (
           <button
             onClick={() => {
               setOpen(false);
@@ -66,6 +68,7 @@ export function ClubSwitcher() {
           >
             <Plus className="size-4" /> Join or start another club
           </button>
+          )}
         </div>
       )}
 

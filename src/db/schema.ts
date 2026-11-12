@@ -3,13 +3,27 @@ import type { Features } from "@/lib/features";
 
 const now = () => timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow();
 
-/** People who can sign in. With Clerk, `id` is the Clerk user id. In demo mode it's "demo-…". */
+/** People who can sign in. Demo people have ids like "demo-officer" and no password. */
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email"),
+  /** Lowercased email used to sign in. Null for demo people (they can't sign in with a password). */
+  loginEmail: text("login_email"),
+  /** scrypt hash — never the password itself. */
+  passwordHash: text("password_hash"),
+  failedLogins: integer("failed_logins").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true, mode: "date" }),
   createdAt: now(),
-});
+}, (t) => [uniqueIndex("users_login_email").on(t.loginEmail)]);
+
+/** Signed-in browsers. We store a hash of the session token, so a database leak can't be used to log in. */
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  createdAt: now(),
+}, (t) => [index("sessions_user").on(t.userId)]);
 
 export const clubs = pgTable("clubs", {
   id: text("id").primaryKey(),

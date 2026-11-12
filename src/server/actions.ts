@@ -98,7 +98,7 @@ export async function setDemoUser(userId: string): Promise<Result> {
     if (!viewer?.demo) throw new NotAllowed("Only available in the demo");
     const pick = DEMO_USERS.find((d) => d.id === userId);
     if (!pick) throw new Invalid("Unknown demo user");
-    (await cookies()).set(DEMO_USER_COOKIE, pick.id, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
+    (await cookies()).set(DEMO_USER_COOKIE, pick.id, { httpOnly: true, path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 });
     return loadSnapshot((await getViewer())!);
   });
 }
@@ -107,6 +107,7 @@ export async function createClub(name: string): Promise<Result> {
   return run(async () => {
     const viewer = await getViewer();
     if (!viewer) throw new NotAllowed("Please sign in");
+    if (viewer.demo) throw new NotAllowed("Create an account to start your own club.");
     const clubName = text(name, 80, { required: true });
     const db = await getDb();
     const clubId = newId();
@@ -126,6 +127,7 @@ export async function joinClub(code: string): Promise<Result> {
   return run(async () => {
     const viewer = await getViewer();
     if (!viewer) throw new NotAllowed("Please sign in");
+    if (viewer.demo) throw new NotAllowed("Create an account to join a real club.");
     const clean = text(code, 32, { required: true }).toUpperCase().replace(/[^A-Z0-9]/g, "");
     const db = await getDb();
     const [club] = await db.select().from(schema.clubs).where(eq(schema.clubs.inviteCode, clean));

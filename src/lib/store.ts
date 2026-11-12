@@ -20,7 +20,7 @@ import { DEFAULT_TEMPLATE } from "./seed";
 import * as api from "@/server/actions";
 import type { Result } from "@/server/actions";
 
-/** Demo logins (only used when Clerk isn't set up). */
+/** The three sample people in the demo club (see /demo). */
 export const DEMO_USERS: Record<Role, { id: string; name: string }> = {
   admin: { id: "demo-officer", name: "Dev Mehta" },
   advisor: { id: "demo-advisor", name: "Mr. Anderson" },

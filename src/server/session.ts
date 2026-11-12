@@ -1,9 +1,9 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { clerkEnabled } from "@/lib/clerk";
+import { sessionUser } from "./auth";
 
+/** Set only while someone is trying the demo (from /demo). */
 export const DEMO_USER_COOKIE = "clubos-demo-user";
 export const CLUB_COOKIE = "clubos-club";
 
@@ -15,32 +15,25 @@ export const DEMO_USERS = [
 
 export type Viewer = { userId: string; name: string; email: string | null; demo: boolean };
 
-/** Who is making this request. Returns null when signed out (Clerk mode only). */
+/** Who is making this request: a demo visitor, a signed-in account, or nobody (null). */
 export async function getViewer(): Promise<Viewer | null> {
-  if (clerkEnabled) {
-    const { currentUser } = await import("@clerk/nextjs/server");
-    const u = await currentUser();
-    if (!u) return null;
-    const name = u.fullName || u.username || u.primaryEmailAddress?.emailAddress?.split("@")[0] || "New member";
-    const viewer: Viewer = { userId: u.id, name, email: u.primaryEmailAddress?.emailAddress ?? null, demo: false };
-    await upsertUser(viewer);
-    return viewer;
-  }
   const jar = await cookies();
-  const pick = DEMO_USERS.find((d) => d.id === jar.get(DEMO_USER_COOKIE)?.value) ?? DEMO_USERS[0];
-  const viewer: Viewer = { userId: pick.id, name: pick.name, email: pick.email, demo: true };
-  await upsertUser(viewer);
-  return viewer;
+  const demo = DEMO_USERS.find((d) => d.id === jar.get(DEMO_USER_COOKIE)?.value);
+  if (demo) {
+    await ensureDemoUsers();
+    return { userId: demo.id, name: demo.name, email: demo.email, demo: true };
+  }
+  const user = await sessionUser();
+  if (!user) return null;
+  return { userId: user.id, name: user.name, email: user.loginEmail ?? user.email, demo: false };
 }
 
-async function upsertUser(v: Viewer) {
+let demoUsersReady = false;
+async function ensureDemoUsers() {
+  if (demoUsersReady) return;
   const db = await getDb();
-  const [existing] = await db.select().from(schema.users).where(eq(schema.users.id, v.userId));
-  if (!existing) {
-    await db.insert(schema.users).values({ id: v.userId, name: v.name, email: v.email }).onConflictDoNothing();
-  } else if (existing.name !== v.name || existing.email !== v.email) {
-    await db.update(schema.users).set({ name: v.name, email: v.email }).where(eq(schema.users.id, v.userId));
-  }
+  await db.insert(schema.users).values(DEMO_USERS.map((u) => ({ id: u.id, name: u.name, email: u.email }))).onConflictDoNothing();
+  demoUsersReady = true;
 }
 
 export async function getActiveClubCookie() {

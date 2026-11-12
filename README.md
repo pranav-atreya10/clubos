@@ -2,7 +2,7 @@
 
 The operational home for school clubs: get AM Wired announcements approved and sent, keep everyone on one calendar, and spot future board members.
 
-Built with Next.js, Tailwind, Clerk, GSAP, Lenis, and React Bits.
+Built with Next.js, Tailwind, Postgres (Drizzle), GSAP, Lenis, and React Bits.
 
 ## Run it
 
@@ -11,19 +11,34 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. With nothing configured, ClubOS runs in **demo mode**: a built-in Postgres database (saved in `.data/`, created automatically) with a sample club, and a "View as" switch at the top to try the Officer, Advisor, and Member accounts.
+Open http://localhost:3000. With nothing configured, ClubOS uses a built-in Postgres database (saved in `.data/`, created automatically).
 
-## Going live: database + logins
+## Pages
+
+| Page | What it is |
+| --- | --- |
+| `/` | Landing page |
+| `/sign-up`, `/sign-in` | Email + password accounts (built in, no extra service) |
+| `/app` | The app |
+| `/demo` | Try a sample club as an Officer, Advisor, or Member, no account needed. Shared by everyone and resets daily. |
+| `/demovid` | The 43-second product video (`public/demo/`) |
+| `/api/health` | Says whether the database is connected (never shows connection details) |
+
+## Going live
 
 ClubOS stores everything in **Postgres** (via [Drizzle](https://orm.drizzle.team)). Any Postgres works; [Supabase](https://supabase.com) has a free plan.
 
-1. **Database:** create a Supabase project → **Connect** → copy the **Transaction pooler** connection string (port 6543) and put your database password in it. Set it as `DATABASE_URL` in `.env.local` (and in your host's environment variables).
-2. **Logins:** create a [Clerk](https://dashboard.clerk.com) app and set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`.
-3. Start the app. Tables are created automatically on first run (or run `npm run db:migrate`).
-4. Sign in → **Start a club** → share the invite code from **Settings → Invite people**.
+1. Create a Supabase project → **Connect** → copy the **Transaction pooler** connection string (port 6543) and put your password in it.
+2. Set it as `DATABASE_URL` in your host's environment variables (on Vercel: Settings → Environment Variables, marked **Sensitive**), then redeploy.
+3. Tables are created automatically on first run. Visit `/api/health` to check it's connected.
+4. Create an account → **Start a club** → share the invite code from **Settings → Invite people**.
 5. In **Members**, set each person's account type (Officer, Advisor, Member).
 
 Changing the schema: edit `src/db/schema.ts`, then `npm run db:generate` to create a new migration in `drizzle/`.
+
+### How sign-in works
+
+Passwords are hashed with scrypt (never stored). Signing in creates a random session token in an httpOnly cookie; only its SHA-256 hash is stored, so a database leak can't be used to log in. Five wrong passwords lock that account for five minutes. There's no password reset by email yet.
 
 ## Accounts
 

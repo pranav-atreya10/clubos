@@ -4,15 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, Lock, Menu, X } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
 import { useClub } from "@/lib/store";
-import { clerkEnabled } from "@/lib/clerk";
 import { cn } from "@/lib/cn";
 import { GROUPS, NAV, canSee } from "./nav";
 import { featureForPath, FEATURES } from "@/lib/features";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
-import { ClerkIdentity, DemoIdentity, RoleSwitch } from "./identity";
+import { AccountCard, RoleSwitch } from "./identity";
 import { ClubSwitcher } from "./club-switcher";
 import { Onboarding } from "./onboarding";
 
@@ -132,7 +130,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className={cn(panel, "space-y-3 p-3")}>
-        {clerkEnabled ? <ClerkIdentity /> : <DemoIdentity />}
+        <AccountCard />
         <div className="flex items-center justify-between px-1">
           <span className="text-xs text-faint">Theme</span>
           <ThemeToggle />
@@ -167,6 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const role = useClub((s) => s.role);
   const clubId = useClub((s) => s.clubId);
+  const demo = useClub((s) => s.demo);
   const clubName = useClub((s) => s.settings.clubName);
   const features = useClub((s) => s.settings.features);
   const offFeature = featureForPath(pathname);
@@ -205,11 +204,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {status === "no-club" && (
         <div className="hidden items-center justify-between px-8 pt-6 lg:flex">
           <Logo />
-          {clerkEnabled && <UserButton />}
+          <div className="w-64">
+            <AccountCard />
+          </div>
         </div>
       )}
       <main className={cn(status !== "no-club" && "lg:pl-[276px]")}>
-        {(ready || status === "no-club") && !clerkEnabled && (
+        {ready && demo && (
           <div className="sticky top-14 z-20 flex justify-center px-4 pt-3 lg:top-0">
             <RoleSwitch />
           </div>

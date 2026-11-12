@@ -12,7 +12,6 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.9.25",
     "@electric-sql/pglite": "^0.5.16",
     "@gsap/react": "^2.1.2",
     "clsx": "^2.1.1",

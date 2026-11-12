@@ -23,13 +23,27 @@ const LINKS: Record<string, string> = { u3: "demo-officer", u4: "demo-member" };
 /** Creates the sample club (only in demo mode, only once). `reset` wipes and recreates it. */
 export async function ensureDemoClub(db: DB, { reset = false } = {}) {
   if (reset) await db.delete(schema.clubs).where(eq(schema.clubs.id, DEMO_CLUB_ID));
-  const [exists] = await db.select({ id: schema.clubs.id }).from(schema.clubs).where(eq(schema.clubs.id, DEMO_CLUB_ID));
-  if (exists) return;
+  const [exists] = await db.select({ id: schema.clubs.id, createdAt: schema.clubs.createdAt }).from(schema.clubs).where(eq(schema.clubs.id, DEMO_CLUB_ID));
+  if (exists) {
+    // Anyone can edit the demo, so start it fresh once a day (dates also stay current).
+    if (Date.now() - exists.createdAt.getTime() < 24 * 3600_000) return;
+    await db.delete(schema.clubs).where(eq(schema.clubs.id, DEMO_CLUB_ID));
+  }
 
   const st = seedSettings();
   const clubId = DEMO_CLUB_ID;
   const mid = (id: string) => `demo-${id}`;
 
+  try {
+    await createDemoClub(db, st, clubId, mid);
+  } catch (e) {
+    // Two visitors arrived at the same moment and the other request already created it.
+    const [now] = await db.select({ id: schema.clubs.id }).from(schema.clubs).where(eq(schema.clubs.id, DEMO_CLUB_ID));
+    if (!now) throw e;
+  }
+}
+
+async function createDemoClub(db: DB, st: ReturnType<typeof seedSettings>, clubId: string, mid: (id: string) => string) {
   await db.transaction(async (tx) => {
     // The three demo logins need to exist before club members can point at them.
     await tx
