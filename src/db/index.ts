@@ -16,14 +16,19 @@ const g = globalThis as unknown as { __clubosDb?: Promise<DB> };
 
 async function connect(): Promise<DB> {
   const migrationsFolder = path.join(process.cwd(), "drizzle");
-  const url = process.env.DATABASE_URL;
+  const url = databaseUrl();
 
   if (url) {
     const { drizzle } = await import("drizzle-orm/postgres-js");
     const { migrate } = await import("drizzle-orm/postgres-js/migrator");
     const postgres = (await import("postgres")).default;
+    // Links from Supabase's Vercel integration carry extra settings (?sslmode=…&supa=…)
+    // that aren't real Postgres options; turn them into plain connection settings.
+    const parsed = new URL(url);
+    const ssl = parsed.searchParams.get("sslmode") === "require" || parsed.hostname.endsWith("supabase.com") ? "require" : undefined;
+    parsed.search = "";
     // prepare:false keeps Supabase's connection pooler (port 6543) happy.
-    const client = postgres(url, { prepare: false, max: 5 });
+    const client = postgres(parsed.toString(), { prepare: false, max: 5, ...(ssl ? { ssl } : {}) });
     const db = drizzle(client, { schema });
     await migrate(db, { migrationsFolder });
     return db;
@@ -53,5 +58,10 @@ export function getDb(): Promise<DB> {
   return g.__clubosDb;
 }
 
-export const usingEmbeddedDb = !process.env.DATABASE_URL;
+/** DATABASE_URL, or POSTGRES_URL (set automatically by Supabase's Vercel integration). */
+function databaseUrl() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+}
+
+export const usingEmbeddedDb = !databaseUrl();
 export { schema };
