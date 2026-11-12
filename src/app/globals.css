@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ClubOS tokens — black & white UI, deep forest green accent */
+:root {
+  --bg: #f3f3f2;
+  --bg-subtle: #ececea;
+  --surface: #ffffff;
+  --surface-2: #f4f4f3;
+  --border: #e6e6e3;
+  --border-strong: #cfcfcb;
+  --fg: #0b0b0b;
+  --fg-muted: #66665f;
+  --fg-faint: #9a9a93;
+  --accent: #1d4a33;
+  --accent-hover: #163a28;
+  --accent-fg: #ffffff;
+  --accent-soft: #e7efe9;
+  --accent-text: #1d4a33;
+  --warn: #8a5a00;
+  --warn-soft: #fbf3e2;
+  --danger: #a1261c;
+  --danger-soft: #fbeceb;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.08);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #080808;
+  --bg-subtle: #0d0d0d;
+  --surface: #131313;
+  --surface-2: #1b1b1b;
+  --border: #242424;
+  --border-strong: #353535;
+  --fg: #f3f3f1;
+  --fg-muted: #a0a09a;
+  --fg-faint: #6c6c66;
+  --accent: #2f6e4c;
+  --accent-hover: #3a8159;
+  --accent-fg: #ffffff;
+  --accent-soft: #13241a;
+  --accent-text: #7cc29b;
+  --warn: #e0b45c;
+  --warn-soft: #2a2110;
+  --danger: #f08a80;
+  --danger-soft: #2b1412;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-serif);
+  --shadow-card: var(--shadow);
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+/* Lenis */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
