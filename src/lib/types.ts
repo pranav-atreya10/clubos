@@ -113,8 +113,10 @@ export type ClubData = {
   id: string;
   role: Role;
   meId: string;
-  /** Only officers get the invite code. */
+  /** Only officers get the invite codes. */
   inviteCode: string | null;
+  /** Joins as Advisor — for the teacher advisor only. */
+  advisorInviteCode: string | null;
   settings: ClubSettings;
   members: Member[];
   events: ClubEvent[];

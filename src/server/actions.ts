@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { getDb, schema, type DB } from "@/db";
 import type { Role, Snapshot, TaskStatus } from "@/lib/types";
 import { FEATURES, type FeatureKey } from "@/lib/features";
@@ -115,7 +115,9 @@ export async function createClub(name: string): Promise<Result> {
     const db = await getDb();
     const clubId = newId();
     await db.transaction(async (tx) => {
-      await tx.insert(schema.clubs).values({ id: clubId, name: clubName, inviteCode: newInviteCode(), wiredTemplate: DEFAULT_TEMPLATE, features: { ...ALL_ON } });
+      await tx.insert(schema.clubs).values({
+        id: clubId, name: clubName, inviteCode: newInviteCode(), advisorInviteCode: newInviteCode(), wiredTemplate: DEFAULT_TEMPLATE, features: { ...ALL_ON },
+      });
       await tx.insert(schema.members).values({
         id: newId(), clubId, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role: "admin", title: "President", joined: today(),
       });
@@ -133,19 +135,32 @@ export async function joinClub(code: string): Promise<Result> {
     if (viewer.demo) throw new NotAllowed("Create an account to join a real club.");
     const clean = text(code, 32, { required: true }).toUpperCase().replace(/[^A-Z0-9]/g, "");
     const db = await getDb();
-    const [club] = await db.select().from(schema.clubs).where(eq(schema.clubs.inviteCode, clean));
+    const [club] = await db.select().from(schema.clubs).where(or(eq(schema.clubs.inviteCode, clean), eq(schema.clubs.advisorInviteCode, clean)));
     if (!club) throw new Invalid("That code didn't match any club. Check it with an officer.");
+    const asAdvisor = club.advisorInviteCode === clean;
+    const role = asAdvisor ? ("advisor" as const) : ("member" as const);
+    const title = asAdvisor ? "Advisor" : "Member";
 
     const [already] = await db.select().from(schema.members).where(and(eq(schema.members.clubId, club.id), eq(schema.members.userId, viewer.userId)));
-    if (!already) {
+    if (already) {
+      // A member who later gets the advisor code becomes the advisor (officers stay officers).
+      if (asAdvisor && already.role === "member") await db.update(schema.members).set({ role, title }).where(eq(schema.members.id, already.id));
+    } else {
       const email = viewer.email?.toLowerCase();
       const roster = email ? await db.select().from(schema.members).where(eq(schema.members.clubId, club.id)) : [];
       const match = roster.find((m) => !m.userId && m.email.toLowerCase() === email);
       if (match) {
-        await db.update(schema.members).set({ userId: viewer.userId }).where(eq(schema.members.id, match.id));
+        await db
+          .update(schema.members)
+          .set({ userId: viewer.userId, ...(asAdvisor && match.role === "member" ? { role, title } : {}) })
+          .where(eq(schema.members.id, match.id));
       } else {
-        await db.insert(schema.members).values({ id: newId(), clubId: club.id, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role: "member", title: "Member", joined: today() });
+        await db.insert(schema.members).values({ id: newId(), clubId: club.id, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role, title, joined: today() });
       }
+    }
+    // Use the advisor's real name in AM Wired wording if the club hasn't set one yet.
+    if (asAdvisor && club.advisorName === "Your advisor") {
+      await db.update(schema.clubs).set({ advisorName: viewer.name }).where(eq(schema.clubs.id, club.id));
     }
     (await cookies()).set(CLUB_COOKIE, club.id, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
     return loadSnapshot(viewer, club.id);
@@ -195,10 +210,14 @@ export async function setFeature(clubId: string, key: FeatureKey, on: boolean): 
   });
 }
 
-export async function newInvite(clubId: string): Promise<Result> {
+export async function newInvite(clubId: string, kind: "member" | "advisor" = "member"): Promise<Result> {
   return run(async () => {
     const { db } = await requireMember(clubId, ["admin"]);
-    await db.update(schema.clubs).set({ inviteCode: newInviteCode() }).where(eq(schema.clubs.id, clubId));
+    const which = oneOf(kind, ["member", "advisor"] as const);
+    await db
+      .update(schema.clubs)
+      .set(which === "advisor" ? { advisorInviteCode: newInviteCode() } : { inviteCode: newInviteCode() })
+      .where(eq(schema.clubs.id, clubId));
     return snap(clubId);
   });
 }
@@ -463,6 +482,10 @@ export async function setMemberRole(clubId: string, memberId: string, role: Role
     }
     const title = next === "advisor" ? "Advisor" : m.title === "Advisor" ? (next === "admin" ? "Officer" : "Member") : m.title === "Member" && next === "admin" ? "Officer" : next === "member" ? "Member" : m.title;
     await db.update(schema.members).set({ role: next, title }).where(eq(schema.members.id, m.id));
+    if (next === "advisor") {
+      const [club] = await db.select({ advisorName: schema.clubs.advisorName }).from(schema.clubs).where(eq(schema.clubs.id, clubId));
+      if (club?.advisorName === "Your advisor") await db.update(schema.clubs).set({ advisorName: m.name }).where(eq(schema.clubs.id, clubId));
+    }
     return snap(clubId);
   });
 }

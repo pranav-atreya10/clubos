@@ -41,7 +41,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       <div className="w-full max-w-sm rounded-3xl border border-line bg-surface p-7 shadow-card">
         <h1 className="font-display text-4xl leading-none">{up ? "Create your account" : "Welcome back"}</h1>
         <p className="mt-2 mb-7 text-sm text-muted">
-          {up ? "Then start your club or join one with an invite code." : "Sign in to your club."}
+          {up ? "Students and advisors both sign up here. Then start a club or join one with an invite code." : "Sign in to your club."}
         </p>
         <form onSubmit={submit} className="space-y-4">
           {up && (

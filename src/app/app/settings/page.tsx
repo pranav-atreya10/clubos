@@ -60,7 +60,7 @@ export default function SettingsPage() {
         <Section
           id="invite"
           title="Invite people"
-          body="Share this code. Anyone who signs in and enters it joins as a member. Make them an officer or advisor in Members."
+          body="People make an account, then enter a code to join. You can also change anyone's account type in Members."
         >
           <InviteCode />
         </Section>
@@ -107,7 +107,7 @@ export default function SettingsPage() {
 
         {features.attendance && (
         <Section title="Attendance" body="Attendance lives on the school’s site. ClubOS just links to it.">
-          <Field k="attendanceUrl" label="Attendance website" type="url" />
+          <Field k="attendanceUrl" label="Attendance website" type="url" hint="Placeholder — change to the real site" />
         </Section>
         )}
 

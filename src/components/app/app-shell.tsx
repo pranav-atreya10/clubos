@@ -12,6 +12,7 @@ import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import { AccountCard, RoleSwitch } from "./identity";
 import { ClubSwitcher } from "./club-switcher";
+import { QuickAdd } from "./quick-add";
 import { Onboarding } from "./onboarding";
 
 /** Loads the club from the database, then keeps it fresh so changes from other people show up. */
@@ -67,6 +68,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const role = useClub((s) => s.role);
   const wired = useClub((s) => s.wired);
   const features = useClub((s) => s.settings.features);
+  const attendanceUrl = useClub((s) => s.settings.attendanceUrl);
 
   const pendingApprovals = wired.filter((w) => w.status === "pending").length;
   const wiredAttention = wired.filter((w) => w.status === "changes" || w.status === "approved").length;
@@ -81,13 +83,16 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <ClubSwitcher />
       </div>
 
+      <QuickAdd />
+
       <nav aria-label="Main" className={cn(panel, "no-scrollbar flex-1 overflow-y-auto p-2")} data-lenis-prevent>
         {GROUPS.map((g) => {
           const items = NAV.filter((n) => {
             const feat = featureForPath(n.href);
             return n.group === g && n.roles.includes(role) && (!feat || features[feat]);
           });
-          const showAttendance = g === "Leaders" && role !== "member" && features.attendance;
+          // Attendance is for officers and members (not the advisor).
+          const showAttendance = g === "Club" && role !== "advisor" && features.attendance && Boolean(attendanceUrl);
           if (!items.length && !showAttendance) return null;
           return (
             <div key={g} className="mb-2 last:mb-0">

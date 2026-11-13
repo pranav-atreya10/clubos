@@ -37,7 +37,7 @@ export function ClubPicker({ onDone, compact }: { onDone?: () => void; compact?:
           <KeyRound className="size-5" />
         </span>
         <h2 className="text-lg font-semibold">Join a club</h2>
-        <p className="mt-1 mb-5 text-sm text-muted">Ask an officer for your club’s invite code.</p>
+        <p className="mt-1 mb-5 text-sm text-muted">Ask an officer for your club’s invite code. Advisors: use the advisor code.</p>
         <label className="block">
           <Label>Invite code</Label>
           <Input

@@ -29,16 +29,19 @@ export const clubs = pgTable("clubs", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   inviteCode: text("invite_code").notNull(),
+  /** Separate code that joins as Advisor (give it only to the teacher advisor). */
+  advisorInviteCode: text("advisor_invite_code"),
   advisorName: text("advisor_name").notNull().default("Your advisor"),
   wiredEmail: text("wired_email").notNull().default("amwired@livingston.org"),
-  attendanceUrl: text("attendance_url").notNull().default(""),
+  // NOTE: placeholder — this is NOT the real attendance site yet. Change it (in Settings) once we have the right link.
+  attendanceUrl: text("attendance_url").notNull().default("https://livingston.schoology.com"),
   meetingDay: text("meeting_day").notNull().default("Wednesday"),
   meetingTime: text("meeting_time").notNull().default("3:15 PM"),
   meetingRoom: text("meeting_room").notNull().default(""),
   wiredTemplate: text("wired_template").notNull(),
   features: jsonb("features").$type<Features>().notNull(),
   createdAt: now(),
-}, (t) => [uniqueIndex("clubs_invite_code").on(t.inviteCode)]);
+}, (t) => [uniqueIndex("clubs_invite_code").on(t.inviteCode), uniqueIndex("clubs_advisor_invite_code").on(t.advisorInviteCode)]);
 
 /**
  * Everyone in a club — with or without an account. Officers can add people by name/email;

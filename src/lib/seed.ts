@@ -19,7 +19,8 @@ export const seedSettings = (): ClubSettings => ({
   advisorName: "Mr. Anderson",
   advisorEmail: "anderson@school.edu",
   wiredEmail: "amwired@livingston.org",
-  attendanceUrl: "https://example.com/attendance",
+  // NOTE: placeholder — not the real attendance site yet.
+  attendanceUrl: "https://livingston.schoology.com",
   meetingDay: "Wednesday",
   meetingTime: "3:15 PM",
   meetingRoom: "Room 214",

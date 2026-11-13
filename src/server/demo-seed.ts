@@ -54,6 +54,7 @@ async function createDemoClub(db: DB, st: ReturnType<typeof seedSettings>, clubI
       id: clubId,
       name: st.clubName,
       inviteCode: "VELOCITY",
+      advisorInviteCode: "VELOCITYADVISOR",
       advisorName: st.advisorName,
       wiredEmail: st.wiredEmail,
       attendanceUrl: st.attendanceUrl,

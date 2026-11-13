@@ -6,7 +6,7 @@ import { addDays, startOfWeek, toISODate } from "@/lib/dates";
 import { ALL_ON } from "@/lib/features";
 import { ensureDemoClub } from "./demo-seed";
 import { getActiveClubCookie, getViewer, type Viewer } from "./session";
-import { newId } from "./ids";
+import { newId, newInviteCode } from "./ids";
 
 export type ClubRow = typeof schema.clubs.$inferSelect;
 export type MemberRow = typeof schema.members.$inferSelect;
@@ -44,10 +44,16 @@ const toHistory = (rows: (typeof schema.activity.$inferSelect)[]): Map<string, H
 };
 
 /** Loads one club for one person, keeping only what their role may see. */
-export async function loadClub(db: DB, club: ClubRow, me: MemberRow): Promise<ClubData> {
+export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise<ClubData> {
+  let club = clubRow;
   const role = me.role as Role;
   const leader = role === "admin" || role === "advisor";
   if (leader) await ensureUpcomingWeeks(db, club.id);
+  // Clubs made before advisor codes existed get one the first time an officer opens the club.
+  if (role === "admin" && !club.advisorInviteCode) {
+    club = { ...club, advisorInviteCode: newInviteCode() };
+    await db.update(schema.clubs).set({ advisorInviteCode: club.advisorInviteCode }).where(eq(schema.clubs.id, club.id));
+  }
 
   const recent = toISODate(addDays(startOfWeek(new Date()), -14));
   const [members, events, wired, announcements, tasks, resources, activity] = await Promise.all([
@@ -99,6 +105,7 @@ export async function loadClub(db: DB, club: ClubRow, me: MemberRow): Promise<Cl
     role,
     meId: me.id,
     inviteCode: role === "admin" ? club.inviteCode : null,
+    advisorInviteCode: role === "admin" ? club.advisorInviteCode : null,
     // Members don't need the AM Wired setup (template, email).
     settings: leader ? settingsOf(club) : { ...settingsOf(club), wiredTemplate: "", wiredEmail: "" },
     members: members.map(shapeMember),
