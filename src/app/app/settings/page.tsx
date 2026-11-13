@@ -6,13 +6,14 @@ import { DEFAULT_TEMPLATE } from "@/lib/seed";
 import type { ClubSettings } from "@/lib/types";
 import { Page, PageHeader, Card } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Textarea } from "@/components/ui/field";
+import { Input, Label, Select, Textarea } from "@/components/ui/field";
+import { DAY_OPTIONS } from "@/lib/wired";
 import { InviteCode } from "@/components/app/invite-code";
 import { FEATURES } from "@/lib/features";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 
-function Field({ k, label, hint, type = "text" }: { k: Exclude<keyof ClubSettings, "features">; label: string; hint?: string; type?: string }) {
+function Field({ k, label, hint, type = "text" }: { k: Exclude<keyof ClubSettings, "features" | "wiredDays">; label: string; hint?: string; type?: string }) {
   const value = useClub((s) => s.settings[k]);
   const update = useClub((s) => s.updateSettings);
   return (
@@ -37,6 +38,8 @@ function Section({ id, title, body, children }: { id?: string; title: string; bo
 
 export default function SettingsPage() {
   const template = useClub((s) => s.settings.wiredTemplate);
+  const wiredDays = useClub((s) => s.settings.wiredDays);
+  const advisorName = useClub((s) => s.settings.advisorName);
   const update = useClub((s) => s.updateSettings);
   const reset = useClub((s) => s.resetDemo);
   const demo = useClub((s) => s.demo);
@@ -94,7 +97,21 @@ export default function SettingsPage() {
         {features.wired && (
         <Section title="AM Wired" body="Where approved announcements go, and how drafts are worded.">
           <Field k="wiredEmail" label="AM Wired email" type="email" />
-          <Field k="advisorName" label="Advisor’s name" hint="Used in AM Wired messages" />
+          <label className="block">
+            <Label hint="New slots use this length">How often</Label>
+            <Select value={String(wiredDays)} onChange={(e) => update({ wiredDays: Number(e.target.value) })}>
+              {DAY_OPTIONS.map((o) => (
+                <option key={o.v} value={o.v}>
+                  {o.label}
+                  {o.v > 1 ? ` (${o.v} days per message)` : " (weekends skipped)"}
+                </option>
+              ))}
+              {!DAY_OPTIONS.some((o) => o.v === wiredDays) && <option value={wiredDays}>Every {wiredDays} days</option>}
+            </Select>
+          </label>
+          <p className="text-xs text-muted">
+            Approvals go to {advisorName === "your advisor" ? "your advisor once they join with the advisor code" : advisorName}.
+          </p>
           <label className="block">
             <Label hint="{club} {day} {date} {time} {room} {details}">Draft template</Label>
             <Textarea rows={4} value={template} onChange={(e) => update({ wiredTemplate: e.target.value })} />

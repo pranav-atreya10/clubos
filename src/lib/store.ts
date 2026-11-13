@@ -44,6 +44,10 @@ type State = Data & {
   /** Last save problem, shown as a small banner. */
   error: string | null;
   demo: boolean;
+  /** My profile picture URL. */
+  myAvatar: string | null;
+  /** Officer/advisor without a passkey or authenticator app: must set one up first. */
+  needsSecurity: boolean;
   clubs: ClubSummary[];
   clubId: string | null;
   role: Role;
@@ -94,6 +98,7 @@ type State = Data & {
   setMemberRole: (id: string, role: Role) => void;
   addMember: (p: Pick<Member, "name" | "email" | "grade">) => void;
   removeMember: (id: string) => void;
+  handDown: (toId: string, leave: boolean) => void;
 
   addResource: (r: Omit<Resource, "id" | "addedBy" | "date">) => void;
   removeResource: (id: string) => void;
@@ -104,7 +109,8 @@ type State = Data & {
 const EMPTY: Data = {
   settings: {
     clubName: "",
-    advisorName: "",
+    advisorName: "your advisor",
+    wiredDays: 1,
     advisorEmail: "",
     wiredEmail: "",
     attendanceUrl: "",
@@ -123,7 +129,7 @@ const EMPTY: Data = {
 };
 
 const fromSnapshot = (s: Snapshot): Partial<State> => {
-  const base = { demo: s.viewer.demo, userName: s.viewer.name, clubs: s.clubs };
+  const base = { demo: s.viewer.demo, userName: s.viewer.name, clubs: s.clubs, myAvatar: s.viewer.avatar, needsSecurity: s.viewer.needsSecurity };
   if (!s.club) return { ...base, ...EMPTY, status: "no-club", clubId: null, meId: null, inviteCode: null, advisorInviteCode: null, role: "member" };
   const c = s.club;
   return {
@@ -234,6 +240,8 @@ export const useClub = create<State>()((set, get) => {
     status: "loading",
     error: null,
     demo: false,
+    myAvatar: null,
+    needsSecurity: false,
     clubs: [],
     clubId: null,
     role: "member",
@@ -269,7 +277,9 @@ export const useClub = create<State>()((set, get) => {
     newInvite: (kind = "member") => void save(null, (c) => api.newInvite(c, kind)),
 
     updateSettings: (p) =>
-      saveTyping(`settings:${Object.keys(p).join(",")}`, (s) => ({ settings: { ...s.settings, ...p } }), (c) => api.updateSettings(c, p)),
+      "wiredDays" in p
+        ? void save((s) => ({ settings: { ...s.settings, ...p } }), (c) => api.updateSettings(c, p))
+        : saveTyping(`settings:${Object.keys(p).join(",")}`, (s) => ({ settings: { ...s.settings, ...p } }), (c) => api.updateSettings(c, p)),
     setFeature: (key, on) =>
       void save((s) => ({ settings: { ...s.settings, features: { ...s.settings.features, [key]: on } } }), (c) => api.setFeature(c, key, on)),
 
@@ -317,6 +327,12 @@ export const useClub = create<State>()((set, get) => {
     setMemberRole: (id, role) => void save(mapList("members", id, { role, isOfficer: role === "admin" }), (c) => api.setMemberRole(c, id, role)),
     addMember: (p) => void save(null, (c) => api.addMember(c, p)),
     removeMember: (id) => void save((s) => ({ members: s.members.filter((m) => m.id !== id) }), (c) => api.removeMember(c, id)),
+
+    handDown: (toId, leave) => {
+      const clubId = get().clubId;
+      if (!clubId) return;
+      void handle(api.handDown(clubId, toId, leave)).then((err) => err && set({ error: err }));
+    },
 
     addResource: (r) => void save(null, (c) => api.addResource(c, r)),
     removeResource: (id) => void save((s) => ({ resources: s.resources.filter((r) => r.id !== id) }), (c) => api.removeResource(c, id)),

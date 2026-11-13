@@ -12,6 +12,13 @@ export const users = pgTable("users", {
   loginEmail: text("login_email"),
   /** scrypt hash — never the password itself. */
   passwordHash: text("password_hash"),
+  /** Small profile picture (128px JPEG data URL), or null for initials. */
+  avatar: text("avatar"),
+  /** Authenticator-app (TOTP) 2FA. The secret is only used once totpEnabled is true. */
+  totpSecret: text("totp_secret"),
+  totpEnabled: boolean("totp_enabled").notNull().default(false),
+  /** One-time backup codes for 2FA, stored as SHA-256 hashes. */
+  backupCodes: jsonb("backup_codes").$type<string[]>().notNull().default([]),
   failedLogins: integer("failed_logins").notNull().default(0),
   lockedUntil: timestamp("locked_until", { withTimezone: true, mode: "date" }),
   createdAt: now(),
@@ -22,8 +29,23 @@ export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  /** Password was right but the second step (2FA code or passkey) isn't done yet. */
+  mfaPending: boolean("mfa_pending").notNull().default(false),
   createdAt: now(),
 }, (t) => [index("sessions_user").on(t.userId)]);
+
+/** Passkeys (Face ID, Touch ID, Windows Hello, security keys). */
+export const passkeys = pgTable("passkeys", {
+  /** Credential ID (base64url). */
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  publicKey: text("public_key").notNull(),
+  counter: integer("counter").notNull().default(0),
+  transports: jsonb("transports").$type<string[]>().notNull().default([]),
+  name: text("name").notNull().default("Passkey"),
+  createdAt: now(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+}, (t) => [index("passkeys_user").on(t.userId)]);
 
 export const clubs = pgTable("clubs", {
   id: text("id").primaryKey(),
@@ -39,6 +61,8 @@ export const clubs = pgTable("clubs", {
   meetingTime: text("meeting_time").notNull().default("3:15 PM"),
   meetingRoom: text("meeting_room").notNull().default(""),
   wiredTemplate: text("wired_template").notNull(),
+  /** How many days one AM Wired message covers (1 = daily, school days only). */
+  wiredDays: integer("wired_days").notNull().default(1),
   features: jsonb("features").$type<Features>().notNull(),
   createdAt: now(),
 }, (t) => [uniqueIndex("clubs_invite_code").on(t.inviteCode), uniqueIndex("clubs_advisor_invite_code").on(t.advisorInviteCode)]);
@@ -83,7 +107,10 @@ export const events = pgTable("events", {
 export const wiredWeeks = pgTable("wired_weeks", {
   id: text("id").primaryKey(),
   clubId: text("club_id").notNull().references(() => clubs.id, { onDelete: "cascade" }),
+  /** First day this message covers. */
   weekOf: date("week_of", { mode: "string" }).notNull(),
+  /** Last day this message covers. */
+  endDate: date("end_date", { mode: "string" }),
   status: text("status", { enum: ["draft", "pending", "changes", "approved", "sent", "skipped"] }).notNull().default("draft"),
   message: text("message").notNull().default(""),
   advisorNote: text("advisor_note").notNull().default(""),

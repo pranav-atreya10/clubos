@@ -75,7 +75,7 @@ function PreviewWindow() {
             </span>
           </div>
           <p className="mt-5 rounded-xl border border-line bg-bg-subtle p-4 text-[15px] leading-relaxed">
-            Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We’ll walk the track plan for
+            Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We’ll walk the track plan for
             Saturday’s Regional Qualifier — the bus leaves at 7:00 AM. Everyone is welcome!
           </p>
           <div className="mt-4 flex flex-wrap gap-2">

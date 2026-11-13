@@ -13,6 +13,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { AccountCard, RoleSwitch } from "./identity";
 import { ClubSwitcher } from "./club-switcher";
 import { QuickAdd } from "./quick-add";
+import { SecurityPanel } from "@/components/security/security-panel";
 import { Onboarding } from "./onboarding";
 
 /** Loads the club from the database, then keeps it fresh so changes from other people show up. */
@@ -171,6 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const role = useClub((s) => s.role);
   const clubId = useClub((s) => s.clubId);
   const demo = useClub((s) => s.demo);
+  const needsSecurity = useClub((s) => s.needsSecurity);
   const clubName = useClub((s) => s.settings.clubName);
   const features = useClub((s) => s.settings.features);
   const offFeature = featureForPath(pathname);
@@ -220,7 +222,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <RoleSwitch />
           </div>
         )}
-        {status === "no-club" ? (
+        {ready && needsSecurity ? (
+          <div className="mx-auto max-w-2xl px-4 pt-14 pb-24 sm:px-8">
+            <p className="mb-3 text-sm font-medium text-accent-text">One quick step</p>
+            <h1 className="mb-3 font-display text-5xl leading-none tracking-tight">Secure your account.</h1>
+            <p className="mb-8 text-muted">
+              Officers and advisors can approve announcements and see private ratings, so ClubOS needs a second way to confirm it’s you.
+              Add a passkey (fastest) or an authenticator app.
+            </p>
+            <div className="rounded-3xl border border-line bg-surface p-6 sm:p-8">
+              <SecurityPanel onChange={() => void useClub.getState().load()} />
+            </div>
+          </div>
+        ) : status === "no-club" ? (
           <Onboarding />
         ) : status === "signed-out" || status === "error" ? (
           <div className="mx-auto flex max-w-md flex-col items-center px-6 pt-32 text-center">

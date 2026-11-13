@@ -23,7 +23,8 @@ const nextStatus: Record<TaskStatus, TaskStatus> = { todo: "doing", doing: "done
 
 function TaskCard({ t, canMove, canDelete, onOpen }: { t: Task; canMove: boolean; canDelete: boolean; onOpen: () => void }) {
   const s = useClub();
-  const who = s.members.find((m) => m.id === t.assigneeId)?.name ?? "Unassigned";
+  const person = s.members.find((m) => m.id === t.assigneeId);
+  const who = person?.name ?? "Unassigned";
   const overdue = t.status !== "done" && t.due < daysFromToday(0);
   return (
     <div data-reveal className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
@@ -51,7 +52,7 @@ function TaskCard({ t, canMove, canDelete, onOpen }: { t: Task; canMove: boolean
       </div>
       <div className="mt-3 flex items-center justify-between pl-8">
         <span className="flex items-center gap-2 text-xs text-muted">
-          <Avatar name={who} className="size-5 text-[9px]" />
+          <Avatar name={who} src={person?.avatar} className="size-5 text-[9px]" />
           {who}
         </span>
         <div className="flex items-center gap-2">

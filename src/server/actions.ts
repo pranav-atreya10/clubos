@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { getDb, schema, type DB } from "@/db";
 import type { Role, Snapshot, TaskStatus } from "@/lib/types";
 import { FEATURES, type FeatureKey } from "@/lib/features";
@@ -9,7 +9,7 @@ import { DEFAULT_TEMPLATE } from "@/lib/seed";
 import { buildDraft } from "@/lib/wired";
 import { addDays, fromISODate, startOfWeek, toISODate } from "@/lib/dates";
 import { ensureDemoClub } from "./demo-seed";
-import { NotAllowed, loadSnapshot, requireMember, settingsOf } from "./club";
+import { NotAllowed, advisorNameFor, loadSnapshot, requireMember, settingsOf } from "./club";
 import { CLUB_COOKIE, DEMO_USERS, DEMO_USER_COOKIE, getViewer } from "./session";
 import { newId, newInviteCode } from "./ids";
 import { ALL_ON } from "@/lib/features";
@@ -158,10 +158,6 @@ export async function joinClub(code: string): Promise<Result> {
         await db.insert(schema.members).values({ id: newId(), clubId: club.id, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role, title, joined: today() });
       }
     }
-    // Use the advisor's real name in AM Wired wording if the club hasn't set one yet.
-    if (asAdvisor && club.advisorName === "Your advisor") {
-      await db.update(schema.clubs).set({ advisorName: viewer.name }).where(eq(schema.clubs.id, club.id));
-    }
     (await cookies()).set(CLUB_COOKIE, club.id, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
     return loadSnapshot(viewer, club.id);
   });
@@ -179,24 +175,41 @@ export async function resetDemo(): Promise<Result> {
 /* ---------- settings ---------- */
 
 const SETTING_LIMITS = {
-  clubName: 80, advisorName: 80, wiredEmail: 200, attendanceUrl: 2000, meetingDay: 40, meetingTime: 40, meetingRoom: 80, wiredTemplate: 1000,
+  clubName: 80, wiredEmail: 200, attendanceUrl: 2000, meetingDay: 40, meetingTime: 40, meetingRoom: 80, wiredTemplate: 1000,
 } as const;
 const SETTING_COLUMNS = {
-  clubName: "name", advisorName: "advisorName", wiredEmail: "wiredEmail", attendanceUrl: "attendanceUrl",
+  clubName: "name", wiredEmail: "wiredEmail", attendanceUrl: "attendanceUrl",
   meetingDay: "meetingDay", meetingTime: "meetingTime", meetingRoom: "meetingRoom", wiredTemplate: "wiredTemplate",
 } as const;
 
 export async function updateSettings(clubId: string, patch: Record<string, unknown>): Promise<Result> {
   return run(async () => {
-    const { db } = await requireMember(clubId, ["admin"]);
+    const { db, club } = await requireMember(clubId, ["admin"]);
     const set: Partial<typeof schema.clubs.$inferInsert> = {};
     for (const [k, v] of Object.entries(patch ?? {})) {
+      if (k === "wiredDays") {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 1 || n > 31) throw new Invalid("Pick between 1 and 31 days");
+        set.wiredDays = n;
+        continue;
+      }
       if (!(k in SETTING_COLUMNS)) continue;
       const key = k as keyof typeof SETTING_COLUMNS;
       const value = text(v, SETTING_LIMITS[key], { required: key === "clubName" });
       (set as Record<string, string>)[SETTING_COLUMNS[key]] = value;
     }
     if (Object.keys(set).length) await db.update(schema.clubs).set(set).where(eq(schema.clubs.id, clubId));
+    if (set.wiredDays !== undefined && set.wiredDays !== club.wiredDays) {
+      // Re-plan future slots nobody has touched yet, so the new length applies right away.
+      await db.execute(sql`
+        delete from ${schema.wiredWeeks}
+        where ${schema.wiredWeeks.clubId} = ${clubId}
+          and ${schema.wiredWeeks.weekOf} > ${today()}
+          and ${schema.wiredWeeks.status} = 'draft'
+          and ${schema.wiredWeeks.message} = ''
+          and not exists (select 1 from ${schema.activity} where ${schema.activity.entityType} = 'wired' and ${schema.activity.entityId} = ${schema.wiredWeeks.id})
+      `);
+    }
     return snap(clubId);
   });
 }
@@ -249,7 +262,7 @@ export async function wiredGenerate(clubId: string, weekId: string): Promise<Res
     const w = await week(db, clubId, weekId);
     const settings = settingsOf(club);
     const evs = settings.features.calendar ? await db.select().from(schema.events).where(eq(schema.events.clubId, clubId)) : [];
-    const message = buildDraft(settings, evs.map((e) => ({ ...e })), w.weekOf);
+    const message = buildDraft({ ...settings, advisorName: await advisorNameFor(db, clubId) }, evs.map((e) => ({ ...e })), w.weekOf, w.endDate);
     await setWeek(db, w.id, { message, status: "draft" });
     await log(db, clubId, "wired", w.id, viewer.name, settings.features.calendar ? "Auto-filled draft from calendar" : "Auto-filled draft");
     return snap(clubId);
@@ -258,12 +271,12 @@ export async function wiredGenerate(clubId: string, weekId: string): Promise<Res
 
 /** Moves a week from one status to another, if allowed, and records it. */
 async function wiredMove(clubId: string, weekId: string, roles: Role[], from: string[], to: typeof schema.wiredWeeks.$inferInsert.status, action: (advisor: string) => string, extra: Partial<typeof schema.wiredWeeks.$inferInsert> = {}) {
-  const { db, viewer, club } = await requireMember(clubId, roles);
+  const { db, viewer } = await requireMember(clubId, roles);
   const w = await week(db, clubId, weekId);
   if (!from.includes(w.status)) throw new Invalid("Someone else changed this — refreshed.");
   if (to === "pending" && !w.message.trim()) throw new Invalid("Write the message first");
   await setWeek(db, w.id, { status: to, ...extra });
-  await log(db, clubId, "wired", w.id, viewer.name, action(club.advisorName));
+  await log(db, clubId, "wired", w.id, viewer.name, action(await advisorNameFor(db, clubId)));
   return snap(clubId);
 }
 
@@ -291,10 +304,15 @@ export async function wiredRequestChanges(clubId: string, weekId: string, note: 
 
 export async function wiredAddWeek(clubId: string): Promise<Result> {
   return run(async () => {
-    const { db } = await requireMember(clubId, ["admin"]);
+    const { db, club } = await requireMember(clubId, ["admin"]);
+    const len = club.wiredDays;
     const [last] = await db.select().from(schema.wiredWeeks).where(eq(schema.wiredWeeks.clubId, clubId)).orderBy(desc(schema.wiredWeeks.weekOf)).limit(1);
-    const weekOf = last ? toISODate(addDays(fromISODate(last.weekOf), 7)) : toISODate(startOfWeek(new Date()));
-    await db.insert(schema.wiredWeeks).values({ id: newId(), clubId, weekOf }).onConflictDoNothing();
+    let start = last ? addDays(fromISODate(last.endDate ?? last.weekOf), 1) : len === 7 ? startOfWeek(new Date()) : new Date();
+    if (len === 1) while (start.getDay() === 0 || start.getDay() === 6) start = addDays(start, 1);
+    await db
+      .insert(schema.wiredWeeks)
+      .values({ id: newId(), clubId, weekOf: toISODate(start), endDate: toISODate(addDays(start, len - 1)) })
+      .onConflictDoNothing();
     return snap(clubId);
   });
 }
@@ -377,7 +395,7 @@ export async function removeTask(clubId: string, taskId: string): Promise<Result
 
 export async function addEvent(clubId: string, e: { title: string; date: string; time: string; location: string; type: string; notes: string }): Promise<Result> {
   return run(async () => {
-    const { db } = await requireMember(clubId, ["admin"]);
+    const { db } = await requireMember(clubId, ["admin", "advisor"]);
     await db.insert(schema.events).values({
       id: newId(), clubId, title: text(e?.title, 140, { required: true }), date: isoDate(e?.date), time: text(e?.time, 40), location: text(e?.location, 140),
       type: oneOf(e?.type, ["meeting", "race", "event", "deadline"] as const), notes: text(e?.notes, 1000),
@@ -388,7 +406,7 @@ export async function addEvent(clubId: string, e: { title: string; date: string;
 
 export async function removeEvent(clubId: string, eventId: string): Promise<Result> {
   return run(async () => {
-    const { db } = await requireMember(clubId, ["admin"]);
+    const { db } = await requireMember(clubId, ["admin", "advisor"]);
     await db.delete(schema.events).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId))));
     return snap(clubId);
   });
@@ -471,20 +489,50 @@ export async function updateMemberTitle(clubId: string, memberId: string, title:
   });
 }
 
+/** True if, after this change, the club still has at least one officer or advisor. */
+async function keepsALeader(db: DB, clubId: string, memberId: string, newRole: Role | null) {
+  const rows = await db.select({ id: schema.members.id, role: schema.members.role }).from(schema.members).where(eq(schema.members.clubId, clubId));
+  return rows.some((r) => (r.id === memberId ? newRole === "admin" || newRole === "advisor" : r.role === "admin" || r.role === "advisor"));
+}
+
 export async function setMemberRole(clubId: string, memberId: string, role: Role): Promise<Result> {
   return run(async () => {
-    const { db } = await requireMember(clubId, ["admin"]);
+    const { db, me } = await requireMember(clubId, ["admin", "advisor"]);
     const next = oneOf(role, ["admin", "advisor", "member"] as const);
     const m = await memberIn(db, clubId, memberId);
-    if (m.role === "admin" && next !== "admin") {
-      const officers = await db.select({ id: schema.members.id }).from(schema.members).where(and(eq(schema.members.clubId, clubId), eq(schema.members.role, "admin")));
-      if (officers.length <= 1) throw new Invalid("A club needs at least one officer. Make someone else an officer first.");
-    }
+    if (me.role === "advisor" && m.role === "advisor" && m.id !== me.id) throw new NotAllowed("Advisors can't change another advisor");
+    if (!(await keepsALeader(db, clubId, m.id, next))) throw new Invalid("A club needs at least one officer or advisor. Make someone else an officer first.");
     const title = next === "advisor" ? "Advisor" : m.title === "Advisor" ? (next === "admin" ? "Officer" : "Member") : m.title === "Member" && next === "admin" ? "Officer" : next === "member" ? "Member" : m.title;
     await db.update(schema.members).set({ role: next, title }).where(eq(schema.members.id, m.id));
-    if (next === "advisor") {
-      const [club] = await db.select({ advisorName: schema.clubs.advisorName }).from(schema.clubs).where(eq(schema.clubs.id, clubId));
-      if (club?.advisorName === "Your advisor") await db.update(schema.clubs).set({ advisorName: m.name }).where(eq(schema.clubs.id, clubId));
+    return snap(clubId);
+  });
+}
+
+/**
+ * "Hand down": a leaving officer (or advisor) passes their role and title to someone new.
+ * Their unfinished tasks go to the new person. They either stay as Alumni or leave the club.
+ */
+export async function handDown(clubId: string, toMemberId: string, leave: boolean): Promise<Result> {
+  return run(async () => {
+    const { db, viewer, me } = await requireMember(clubId, ["admin", "advisor"]);
+    const to = await memberIn(db, clubId, toMemberId);
+    if (to.id === me.id) throw new Invalid("Pick someone else to hand down to");
+    await db.transaction(async (tx) => {
+      await tx.update(schema.members).set({ role: me.role, title: me.title }).where(eq(schema.members.id, to.id));
+      const open = await tx
+        .select({ id: schema.tasks.id })
+        .from(schema.tasks)
+        .where(and(eq(schema.tasks.clubId, clubId), eq(schema.tasks.assigneeId, me.id), sql`${schema.tasks.status} <> 'done'`));
+      for (const t of open) {
+        await tx.update(schema.tasks).set({ assigneeId: to.id }).where(eq(schema.tasks.id, t.id));
+        await tx.insert(schema.activity).values({ id: newId(), clubId, entityType: "task", entityId: t.id, by: viewer.name, action: `Handed down to ${to.name}` });
+      }
+      if (leave) await tx.delete(schema.members).where(eq(schema.members.id, me.id));
+      else await tx.update(schema.members).set({ role: "member", title: "Alumni" }).where(eq(schema.members.id, me.id));
+    });
+    if (leave) {
+      (await cookies()).delete(CLUB_COOKIE);
+      return loadSnapshot(viewer);
     }
     return snap(clubId);
   });
@@ -504,13 +552,12 @@ export async function addMember(clubId: string, p: { name: string; email: string
 
 export async function removeMember(clubId: string, memberId: string): Promise<Result> {
   return run(async () => {
-    const { db, me } = await requireMember(clubId, ["admin"]);
+    // Officers can remove anyone; advisors can remove officers and members.
+    const { db, me } = await requireMember(clubId, ["admin", "advisor"]);
     const m = await memberIn(db, clubId, memberId);
-    if (m.id === me.id) throw new Invalid("You can't remove yourself");
-    if (m.role === "admin") {
-      const officers = await db.select({ id: schema.members.id }).from(schema.members).where(and(eq(schema.members.clubId, clubId), eq(schema.members.role, "admin")));
-      if (officers.length <= 1) throw new Invalid("A club needs at least one officer");
-    }
+    if (m.id === me.id) throw new Invalid("You can't remove yourself. Use Hand down instead.");
+    if (me.role === "advisor" && m.role === "advisor") throw new NotAllowed("Advisors can't remove another advisor");
+    if (!(await keepsALeader(db, clubId, m.id, null))) throw new Invalid("A club needs at least one officer or advisor");
     await db.delete(schema.members).where(eq(schema.members.id, m.id));
     await db.delete(schema.activity).where(and(eq(schema.activity.clubId, clubId), eq(schema.activity.entityId, m.id)));
     return snap(clubId);

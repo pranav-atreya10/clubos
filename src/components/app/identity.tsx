@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { exitDemo, signOut } from "@/server/auth-actions";
@@ -24,6 +25,7 @@ export function AccountCard() {
   const name = useClub((s) => s.userName);
   const demo = useClub((s) => s.demo);
   const hasClub = useClub((s) => s.clubId !== null);
+  const myAvatar = useClub((s) => s.myAvatar);
   const [busy, setBusy] = useState(false);
   const leave = async () => {
     setBusy(true);
@@ -33,7 +35,8 @@ export function AccountCard() {
   };
   return (
     <div className="flex items-center gap-3 px-1">
-      <Avatar name={name || "?"} accent={role === "advisor"} />
+      <Link href="/app/profile" className="flex min-w-0 flex-1 items-center gap-3 rounded-xl hover:opacity-80" title="Your profile">
+      <Avatar name={name || "?"} src={myAvatar} accent={role === "advisor"} />
       <div className="min-w-0 flex-1 leading-tight">
         <p className="truncate text-sm font-medium">{name}</p>
         <p className="text-xs text-muted">
@@ -41,6 +44,7 @@ export function AccountCard() {
           {demo && " · demo"}
         </p>
       </div>
+      </Link>
       <button
         onClick={leave}
         disabled={busy}

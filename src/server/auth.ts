@@ -46,20 +46,42 @@ const cookieOptions = (maxAge: number) => ({
   maxAge,
 });
 
-/** Signs this browser in as `userId`. */
-export async function startSession(userId: string) {
+/**
+ * Signs this browser in as `userId`. With `mfaPending`, the password was right but the
+ * second step (2FA code or passkey) still has to happen; such a session can't use the app.
+ */
+export async function startSession(userId: string, { mfaPending = false } = {}) {
   const token = randomBytes(32).toString("base64url");
   const db = await getDb();
   await db.insert(schema.sessions).values({
     id: hashToken(token),
     userId,
-    expiresAt: new Date(Date.now() + SESSION_DAYS * 86400_000),
+    mfaPending,
+    // Half-finished sign-ins expire after 10 minutes.
+    expiresAt: new Date(Date.now() + (mfaPending ? 10 * 60_000 : SESSION_DAYS * 86400_000)),
   });
-  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(SESSION_DAYS * 86400));
+  (await cookies()).set(SESSION_COOKIE, token, cookieOptions(mfaPending ? 600 : SESSION_DAYS * 86400));
 }
 
-/** The signed-in user for this browser, or null. Keeps active sessions alive (30 days from last visit). */
+/** The signed-in user for this browser, or null (also null while the 2FA step is unfinished). */
 export async function sessionUser() {
+  const row = await currentSession();
+  return row && !row.session.mfaPending ? row.user : null;
+}
+
+/** The user who typed the right password but hasn't done the second step yet. */
+export async function pendingUser() {
+  const row = await currentSession();
+  return row?.session.mfaPending ? row.user : null;
+}
+
+/** Finishes a sign-in after the second step: replaces the pending session with a full one. */
+export async function completeMfa(userId: string) {
+  await endSession();
+  await startSession(userId);
+}
+
+async function currentSession() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token || token.length > 100) return null;
   const db = await getDb();
@@ -75,10 +97,19 @@ export async function sessionUser() {
     return null;
   }
   // Refresh once it's past halfway, so people who use it stay signed in.
-  if (row.session.expiresAt.getTime() - Date.now() < (SESSION_DAYS / 2) * 86400_000) {
+  if (!row.session.mfaPending && row.session.expiresAt.getTime() - Date.now() < (SESSION_DAYS / 2) * 86400_000) {
     await db.update(schema.sessions).set({ expiresAt: new Date(Date.now() + SESSION_DAYS * 86400_000) }).where(eq(schema.sessions.id, id));
   }
-  return row.user;
+  return row;
+}
+
+/** Whether this person has a second step set up (authenticator app or at least one passkey). */
+export async function hasSecondFactor(userId: string) {
+  const db = await getDb();
+  const [u] = await db.select({ totp: schema.users.totpEnabled }).from(schema.users).where(eq(schema.users.id, userId));
+  if (u?.totp) return true;
+  const [pk] = await db.select({ id: schema.passkeys.id }).from(schema.passkeys).where(eq(schema.passkeys.userId, userId)).limit(1);
+  return Boolean(pk);
 }
 
 export async function endSession() {

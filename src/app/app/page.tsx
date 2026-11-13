@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Circle, Radio, ShieldCheck, Sparkles } from "lucide-react";
 import { useClub } from "@/lib/store";
-import { daysFromToday, daysUntil, fmtLong, relativeDay, startOfWeek, toISODate } from "@/lib/dates";
-import { statusMeta, weekRange } from "@/lib/wired";
+import { daysFromToday, daysUntil, fmtLong, relativeDay } from "@/lib/dates";
+import { cap, currentSlot, statusMeta, weekRange } from "@/lib/wired";
 import { cn } from "@/lib/cn";
 import { Page, SectionTitle, Card } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
@@ -22,19 +22,19 @@ const greeting = () => {
 function WiredCallout() {
   const wired = useClub((s) => s.wired);
   const advisor = useClub((s) => s.settings.advisorName);
-  const thisWeek = toISODate(startOfWeek(new Date()));
-  const w = wired.find((x) => x.weekOf === thisWeek);
+  const w = currentSlot(wired);
   const next = wired
-    .filter((x) => x.weekOf > thisWeek && x.status !== "skipped")
+    .filter((x) => w && x.weekOf > w.weekOf && x.status !== "skipped")
     .sort((a, b) => a.weekOf.localeCompare(b.weekOf))[0];
+  const Adv = cap(advisor);
 
   const copy: Record<string, { title: string; body: string; cta: string }> = {
-    draft: { title: "This week's AM Wired hasn't been sent for approval", body: `Send it to ${advisor} so it makes the morning announcements.`, cta: "Finish draft" },
+    draft: { title: "The next AM Wired hasn't been sent for approval", body: `Send it to ${advisor} so it makes the morning announcements.`, cta: "Finish draft" },
     pending: { title: `Waiting on ${advisor}`, body: "You'll see it here the moment it's approved or needs edits.", cta: "View message" },
-    changes: { title: `${advisor} asked for changes`, body: "Make the edits and resend — it only takes a minute.", cta: "Make edits" },
+    changes: { title: `${Adv} asked for changes`, body: "Make the edits and resend — it only takes a minute.", cta: "Make edits" },
     approved: { title: "Approved — ready to send to AM Wired", body: "Open it in your email app and hit send.", cta: "Send now" },
-    sent: { title: "This week's announcement is out", body: next ? `Next up: week of ${weekRange(next.weekOf)} (${statusMeta[next.status].label.toLowerCase()}).` : "Nothing else queued.", cta: "Plan ahead" },
-    skipped: { title: "Skipping AM Wired this week", body: "No announcement will go out.", cta: "Change" },
+    sent: { title: "This announcement is out", body: next ? `Next up: ${weekRange(next)} (${statusMeta[next.status].label.toLowerCase()}).` : "Nothing else queued.", cta: "Plan ahead" },
+    skipped: { title: "Skipping AM Wired this time", body: "No announcement will go out.", cta: "Change" },
   };
   const state = w ? copy[w.status] : copy.draft;
   const urgent = !w || w.status === "draft" || w.status === "changes" || w.status === "approved";
@@ -52,7 +52,7 @@ function WiredCallout() {
         </span>
         <div>
           <p className={cn("mb-1 text-xs font-medium tracking-wide uppercase", urgent ? "text-accent-fg/70" : "text-muted")}>
-            AM Wired · week of {weekRange(thisWeek)}
+            AM Wired{w ? ` · ${weekRange(w)}` : ""}
           </p>
           <p className="text-lg font-semibold leading-snug">{state.title}</p>
           <p className={cn("mt-1 text-sm", urgent ? "text-accent-fg/80" : "text-muted")}>{state.body}</p>
@@ -257,7 +257,7 @@ export default function HomePage() {
               <Card className="p-2">
                 {members.filter((m) => m.isOfficer).map((m) => (
                   <div key={m.id} className="flex items-center gap-3 rounded-xl p-3">
-                    <Avatar name={m.name} />
+                    <Avatar name={m.name} src={m.avatar} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium">{m.name}</p>
                       <p className="text-xs text-muted">{m.title}</p>

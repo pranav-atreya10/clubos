@@ -24,6 +24,8 @@ export type Member = {
   isOfficer: boolean;
   /** Whether this person has signed in and joined (vs. just added by an officer). */
   hasAccount: boolean;
+  /** Profile picture URL, or null for initials. */
+  avatar: string | null;
   joined: string; // ISO date
   rating: number | null; // leaders-only, out of 10
   ratingNote: string;
@@ -53,7 +55,8 @@ export type WiredStatus =
 
 export type WiredWeek = {
   id: string;
-  weekOf: string; // Monday, YYYY-MM-DD
+  weekOf: string; // first day this message covers, YYYY-MM-DD
+  endDate: string | null; // last day it covers
   status: WiredStatus;
   message: string;
   advisorNote: string;
@@ -95,7 +98,10 @@ export type Resource = {
 
 export type ClubSettings = {
   clubName: string;
+  /** Name(s) of the club's advisor(s), from Members. "your advisor" if there isn't one yet. */
   advisorName: string;
+  /** How many days one AM Wired message covers (1 = every school day). */
+  wiredDays: number;
   advisorEmail: string;
   wiredEmail: string;
   attendanceUrl: string;
@@ -127,7 +133,14 @@ export type ClubData = {
 };
 
 export type Snapshot = {
-  viewer: { userId: string; name: string; demo: boolean };
+  viewer: {
+    userId: string;
+    name: string;
+    demo: boolean;
+    avatar: string | null;
+    /** Officer/advisor somewhere without a passkey or authenticator app yet. */
+    needsSecurity: boolean;
+  };
   clubs: ClubSummary[];
   club: ClubData | null;
 };

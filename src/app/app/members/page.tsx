@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EyeOff, Plus, Search, Star, Trash2 } from "lucide-react";
+import { EyeOff, GraduationCap, Plus, Search, Star, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { Member, Role } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -32,6 +32,8 @@ function MemberModal({
 }) {
   const s = useClub();
   const live = s.members.find((x) => x.id === m.id) ?? m;
+  // Officers manage anyone; advisors manage officers and members (not other advisors).
+  const canManage = live.id !== s.meId && (s.role === "admin" || (s.role === "advisor" && live.role !== "advisor"));
   const noteBefore = useRef(live.ratingNote);
   const logNote = s.logRatingNote;
   // If the window closes while the note is being typed, still record the change.
@@ -44,8 +46,8 @@ function MemberModal({
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <Label hint={canEdit ? "What they can do" : undefined}>Account type</Label>
-            <Select disabled={!canEdit} value={live.role} onChange={(e) => s.setMemberRole(live.id, e.target.value as Role)}>
+            <Label hint={canManage ? "What they can do" : undefined}>Account type</Label>
+            <Select disabled={!canManage} value={live.role} onChange={(e) => s.setMemberRole(live.id, e.target.value as Role)}>
               <option value="member">Member</option>
               <option value="admin">Officer</option>
               <option value="advisor">Advisor</option>
@@ -97,7 +99,7 @@ function MemberModal({
           ) : (
             <span />
           )}
-          {canEdit && (
+          {canManage && (
             <Button
               variant="danger"
               size="sm"
@@ -164,6 +166,63 @@ function AddMember({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+/** For graduating officers/advisors: pass your role and title to someone new. */
+function HandDown({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const s = useClub();
+  const me = s.members.find((m) => m.id === s.meId);
+  const others = s.members.filter((m) => m.id !== s.meId && m.role === "member");
+  const [to, setTo] = useState("");
+  const [leave, setLeave] = useState(false);
+  const pick = others.find((m) => m.id === to);
+  if (!me) return null;
+  return (
+    <Modal open={open} onClose={onClose} title="Hand down your role">
+      <div className="space-y-4">
+        <p className="text-sm text-muted">
+          Graduating or stepping down? Pass <span className="font-medium text-fg">{me.title}</span> to someone new. They get your
+          role and title, and your unfinished tasks.
+        </p>
+        <label className="block">
+          <Label>Hand down to</Label>
+          <Select value={to} onChange={(e) => setTo(e.target.value)}>
+            <option value="">Choose a member…</option>
+            {others.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} (grade {m.grade})
+              </option>
+            ))}
+          </Select>
+        </label>
+        <div className="space-y-2 text-sm">
+          <label className="flex items-start gap-2">
+            <input type="radio" checked={!leave} onChange={() => setLeave(false)} className="mt-0.5 accent-[var(--accent)]" />
+            <span>
+              Stay in the club as <span className="font-medium">Alumni</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2">
+            <input type="radio" checked={leave} onChange={() => setLeave(true)} className="mt-0.5 accent-[var(--accent)]" />
+            <span>Leave the club</span>
+          </label>
+        </div>
+        <Button
+          variant="primary"
+          className="w-full"
+          disabled={!pick}
+          onClick={() => {
+            if (!pick) return;
+            s.handDown(pick.id, leave);
+            onClose();
+          }}
+        >
+          {pick ? `Hand down to ${pick.name.split(" ")[0]}` : "Hand down"}
+        </Button>
+        <p className="text-xs text-faint">You can’t undo this yourself — the new person or an advisor would have to change it back.</p>
+      </div>
+    </Modal>
+  );
+}
+
 export default function MembersPage() {
   const members = useClub((s) => s.members);
   const role = useClub((s) => s.role);
@@ -180,6 +239,7 @@ export default function MembersPage() {
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [handing, setHanding] = useState(false);
 
   const list = useMemo(() => {
     const f = members.filter((m) => {
@@ -208,11 +268,18 @@ export default function MembersPage() {
         title="Members"
         subtitle={ratings ? `${members.length} members · average rating ${avg.toFixed(1)}/10` : `${members.length} members · ${members.filter((m) => m.isOfficer).length} officers`}
         actions={
-          canEdit && (
-            <Button variant="primary" onClick={() => setAdding(true)}>
-              <Plus className="size-4" /> Add member
-            </Button>
-          )
+          <>
+            {(role === "admin" || role === "advisor") && (
+              <Button onClick={() => setHanding(true)}>
+                <GraduationCap className="size-4" /> Hand down
+              </Button>
+            )}
+            {canEdit && (
+              <Button variant="primary" onClick={() => setAdding(true)}>
+                <Plus className="size-4" /> Add member
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -274,7 +341,7 @@ export default function MembersPage() {
                     {ratings && sort === "rating" && filter === "all" && !q && (
                       <span className="w-5 text-right text-xs text-faint tabular-nums">{i + 1}</span>
                     )}
-                    <Avatar name={m.name} accent={ratings && m.boardCandidate} />
+                    <Avatar name={m.name} src={m.avatar} accent={ratings && m.boardCandidate} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{m.name}</p>
                       <p className="truncate text-xs text-muted">
@@ -330,6 +397,7 @@ export default function MembersPage() {
 
       {open && <MemberModal m={open} canEdit={canEdit} canRate={canRate} ratings={ratings} onClose={() => setOpenId(null)} />}
       <AddMember open={adding} onClose={() => setAdding(false)} />
+      <HandDown open={handing} onClose={() => setHanding(false)} />
     </Page>
   );
 }

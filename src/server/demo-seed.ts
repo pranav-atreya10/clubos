@@ -55,13 +55,13 @@ async function createDemoClub(db: DB, st: ReturnType<typeof seedSettings>, clubI
       name: st.clubName,
       inviteCode: "VELOCITY",
       advisorInviteCode: "VELOCITYADVISOR",
-      advisorName: st.advisorName,
       wiredEmail: st.wiredEmail,
       attendanceUrl: st.attendanceUrl,
       meetingDay: st.meetingDay,
       meetingTime: st.meetingTime,
       meetingRoom: st.meetingRoom,
       wiredTemplate: st.wiredTemplate,
+      wiredDays: 7,
       features: { ...ALL_ON },
     });
 
@@ -103,7 +103,7 @@ async function createDemoClub(db: DB, st: ReturnType<typeof seedSettings>, clubI
 
     const weeks = seedWired(st.wiredTemplate);
     await tx.insert(schema.wiredWeeks).values(
-      weeks.map((w) => ({ id: mid(w.id), clubId, weekOf: w.weekOf, status: w.status, message: w.message, advisorNote: w.advisorNote, updatedAt: new Date(w.updatedAt) })),
+      weeks.map((w) => ({ id: mid(w.id), clubId, weekOf: w.weekOf, endDate: w.endDate, status: w.status, message: w.message, advisorNote: w.advisorNote, updatedAt: new Date(w.updatedAt) })),
     );
     for (const w of weeks)
       for (const h of w.history)

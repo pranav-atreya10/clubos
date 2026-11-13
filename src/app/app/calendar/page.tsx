@@ -53,7 +53,7 @@ export default function CalendarPage() {
         title="Calendar"
         subtitle="Meetings, races, and deadlines in one place."
         actions={
-          role === "admin" && (
+          (role === "admin" || role === "advisor") && (
             <Button variant="primary" onClick={() => setAdding(true)}>
               <Plus className="size-4" /> New event
             </Button>
@@ -140,7 +140,7 @@ export default function CalendarPage() {
                   </p>
                   {e.notes && <p className="mt-1 text-sm text-muted">{e.notes}</p>}
                 </div>
-                {role === "admin" && (
+                {(role === "admin" || role === "advisor") && (
                   <button
                     aria-label={`Delete ${e.title} on ${fmtLong(e.date)}`}
                     onClick={() => removeEvent(e.id)}

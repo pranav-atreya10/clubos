@@ -3,11 +3,11 @@
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { burnTime, endSession, hashPassword, startSession, verifyPassword } from "./auth";
+import { burnTime, endSession, hasSecondFactor, hashPassword, startSession, verifyPassword } from "./auth";
 import { CLUB_COOKIE, DEMO_USERS, DEMO_USER_COOKIE } from "./session";
 import { newId } from "./ids";
 
-export type AuthResult = { ok: true } | { ok: false; error: string };
+export type AuthResult = { ok: true; mfa?: boolean } | { ok: false; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_TRIES = 5;
@@ -88,6 +88,11 @@ async function signInInner(input: { email: string; password: string }): Promise<
       await db.update(schema.users).set({ failedLogins: 0, lockedUntil: null }).where(eq(schema.users.id, user.id));
     }
     await leaveDemo();
+    // With 2FA set up, the password only gets you to the second step.
+    if (await hasSecondFactor(user.id)) {
+      await startSession(user.id, { mfaPending: true });
+      return { ok: true, mfa: true };
+    }
     await startSession(user.id);
     return { ok: true };
   } catch (e) {

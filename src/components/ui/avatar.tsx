@@ -9,7 +9,11 @@ export const initials = (name: string) =>
     .join("")
     .toUpperCase();
 
-export function Avatar({ name, className, accent }: { name: string; className?: string; accent?: boolean }) {
+export function Avatar({ name, className, accent, src }: { name: string; className?: string; accent?: boolean; src?: string | null }) {
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt="" className={cn("inline-block size-8 shrink-0 rounded-full object-cover ring-1 ring-line", className)} />;
+  }
   return (
     <span
       aria-hidden

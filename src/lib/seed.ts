@@ -12,7 +12,7 @@ import { ALL_ON } from "./features";
 import { addDays, daysFromToday, startOfWeek, toISODate } from "./dates";
 
 export const DEFAULT_TEMPLATE =
-  "Attention racers! {club} meets this {day}, {date}, at {time} in {room}. {details} Everyone is welcome — see you there!";
+  "Attention members! {club} meets this {day}, {date}, at {time} in {room}. {details} Everyone is welcome — see you there!";
 
 export const seedSettings = (): ClubSettings => ({
   clubName: "Velocity Racing Club",
@@ -25,6 +25,7 @@ export const seedSettings = (): ClubSettings => ({
   meetingTime: "3:15 PM",
   meetingRoom: "Room 214",
   wiredTemplate: DEFAULT_TEMPLATE,
+  wiredDays: 7,
   features: { ...ALL_ON },
 });
 
@@ -69,6 +70,7 @@ const m = (
   role: title !== "Member" ? "admin" : "member",
   isOfficer: title !== "Member",
   hasAccount: false,
+  avatar: null,
   joined: daysFromToday(-Math.floor(Math.random() * 400 + 20)),
   rating,
   ratingNote: note,
@@ -112,36 +114,37 @@ export const seedWired = (template: string): WiredWeek[] => {
   const mon = startOfWeek(new Date());
   const now = new Date().toISOString();
   const wk = (n: number) => toISODate(addDays(mon, n * 7));
+  const wkEnd = (n: number) => toISODate(addDays(mon, n * 7 + 4));
   void template;
   return [
     {
-      id: "w-1", weekOf: wk(-1), status: "sent",
-      message: "Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We're prepping for the Regional Qualifier — new members welcome!",
+      id: "w-1", weekOf: wk(-1), endDate: wkEnd(-1), status: "sent",
+      message: "Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We're prepping for the Regional Qualifier — new members welcome!",
       advisorNote: "", updatedAt: now,
       history: [{ at: now, by: "Mr. Anderson", action: "Approved" }, { at: now, by: "Dev Mehta", action: "Marked as sent" }],
     },
     {
-      id: "w0", weekOf: wk(0), status: "pending",
-      message: "Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We'll walk the track plan for Saturday's Regional Qualifier — the bus leaves at 7:00 AM. Everyone is welcome — see you there!",
+      id: "w0", weekOf: wk(0), endDate: wkEnd(0), status: "pending",
+      message: "Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We'll walk the track plan for Saturday's Regional Qualifier — the bus leaves at 7:00 AM. Everyone is welcome — see you there!",
       advisorNote: "", updatedAt: now,
       history: [{ at: now, by: "Dev Mehta", action: "Sent to Mr. Anderson for approval" }],
     },
     {
-      id: "w1", weekOf: wk(1), status: "draft",
-      message: "Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. Race debrief and car tune-ups. Permission slips for State are due Tuesday! Everyone is welcome — see you there!",
+      id: "w1", weekOf: wk(1), endDate: wkEnd(1), status: "draft",
+      message: "Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. Race debrief and car tune-ups. Permission slips for State are due Tuesday! Everyone is welcome — see you there!",
       advisorNote: "", updatedAt: now, history: [],
     },
     {
-      id: "w2", weekOf: wk(2), status: "draft",
+      id: "w2", weekOf: wk(2), endDate: wkEnd(2), status: "draft",
       message: "", advisorNote: "", updatedAt: now, history: [],
     },
     {
-      id: "w3", weekOf: wk(3), status: "skipped",
+      id: "w3", weekOf: wk(3), endDate: wkEnd(3), status: "skipped",
       message: "", advisorNote: "", updatedAt: now,
       history: [{ at: now, by: "Sam Rivera", action: "Skipped — no race this week" }],
     },
     {
-      id: "w4", weekOf: wk(4), status: "draft",
+      id: "w4", weekOf: wk(4), endDate: wkEnd(4), status: "draft",
       message: "", advisorNote: "", updatedAt: now, history: [],
     },
   ];

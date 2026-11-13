@@ -124,7 +124,7 @@ export function QuickAdd() {
   const ref = useRef<HTMLDivElement>(null);
 
   const canAnnounce = (role === "admin" || role === "advisor") && features.announcements;
-  const canEvent = role === "admin" && features.calendar;
+  const canEvent = (role === "admin" || role === "advisor") && features.calendar;
 
   useEffect(() => {
     if (!open) return;

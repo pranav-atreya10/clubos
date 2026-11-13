@@ -5,6 +5,8 @@ import type { Announcement, ClubEvent, EventType } from "@/lib/types";
 import { fmt, fmtShort, relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { Badge, type Tone } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
+import { useClub } from "@/lib/store";
 
 export const eventTone: Record<EventType, Tone> = {
   meeting: "neutral",
@@ -64,19 +66,28 @@ export function EventCard({ e }: { e: ClubEvent }) {
 }
 
 export function AnnouncementItem({ a, actions }: { a: Announcement; actions?: React.ReactNode }) {
+  const author = useClub((s) => s.members.find((m) => m.name === a.author));
+  const role = author?.role === "advisor" ? "Advisor" : author?.isOfficer ? author.title : null;
   return (
-    <article data-reveal className="group flex gap-4 py-5 first:pt-0 last:pb-0">
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          {a.pinned && <Pin className="size-3.5 fill-current text-accent-text" aria-label="Pinned" />}
-          <h3 className="font-semibold">{a.title}</h3>
+    <article data-reveal className="group py-5 first:pt-0 last:pb-0">
+      <div className="mb-3 flex items-center gap-3">
+        <Avatar name={a.author} src={author?.avatar} className="size-9" />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-sm font-semibold">{a.author}</p>
+          <p className="text-xs text-muted">
+            {role ? `${role} · ` : ""}
+            {relativeDay(a.date)}
+          </p>
         </div>
-        <p className="text-[15px] leading-relaxed text-muted">{a.body}</p>
-        <p className="mt-2 text-xs text-faint">
-          {a.author} · {relativeDay(a.date)}
-        </p>
+        {actions}
       </div>
-      {actions}
+      <div className="pl-12">
+        <h3 className="mb-1 flex items-center gap-2 font-semibold">
+          {a.pinned && <Pin className="size-3.5 shrink-0 fill-current text-accent-text" aria-label="Pinned" />}
+          {a.title}
+        </h3>
+        {a.body && <p className="text-[15px] leading-relaxed whitespace-pre-line text-muted">{a.body}</p>}
+      </div>
     </article>
   );
 }
