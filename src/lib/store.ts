@@ -54,7 +54,6 @@ type State = Data & {
   userName: string;
   meId: string | null;
   inviteCode: string | null;
-  advisorInviteCode: string | null;
 
   load: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -63,7 +62,7 @@ type State = Data & {
   switchClub: (clubId: string) => Promise<void>;
   createClub: (name: string) => Promise<string | null>;
   joinClub: (code: string) => Promise<string | null>;
-  newInvite: (kind?: "member" | "advisor") => void;
+  newInvite: () => void;
 
   updateSettings: (p: Partial<ClubSettings>) => void;
   setFeature: (key: FeatureKey, on: boolean) => void;
@@ -130,7 +129,7 @@ const EMPTY: Data = {
 
 const fromSnapshot = (s: Snapshot): Partial<State> => {
   const base = { demo: s.viewer.demo, userName: s.viewer.name, clubs: s.clubs, myAvatar: s.viewer.avatar, needsSecurity: s.viewer.needsSecurity };
-  if (!s.club) return { ...base, ...EMPTY, status: "no-club", clubId: null, meId: null, inviteCode: null, advisorInviteCode: null, role: "member" };
+  if (!s.club) return { ...base, ...EMPTY, status: "no-club", clubId: null, meId: null, inviteCode: null, role: "member" };
   const c = s.club;
   return {
     ...base,
@@ -139,7 +138,6 @@ const fromSnapshot = (s: Snapshot): Partial<State> => {
     role: c.role,
     meId: c.meId,
     inviteCode: c.inviteCode,
-    advisorInviteCode: c.advisorInviteCode,
     settings: c.settings,
     members: c.members,
     events: c.events,
@@ -248,7 +246,6 @@ export const useClub = create<State>()((set, get) => {
     userName: "",
     meId: null,
     inviteCode: null,
-    advisorInviteCode: null,
 
     load: async () => {
       const r = await api.getSnapshot().catch(() => null);
@@ -274,7 +271,7 @@ export const useClub = create<State>()((set, get) => {
     },
     createClub: (name) => handle(api.createClub(name)),
     joinClub: (code) => handle(api.joinClub(code)),
-    newInvite: (kind = "member") => void save(null, (c) => api.newInvite(c, kind)),
+    newInvite: () => void save(null, (c) => api.newInvite(c)),
 
     updateSettings: (p) =>
       "wiredDays" in p

@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb, schema, type DB } from "@/db";
 import type { Role, Snapshot, TaskStatus } from "@/lib/types";
 import { FEATURES, type FeatureKey } from "@/lib/features";
@@ -116,7 +116,7 @@ export async function createClub(name: string): Promise<Result> {
     const clubId = newId();
     await db.transaction(async (tx) => {
       await tx.insert(schema.clubs).values({
-        id: clubId, name: clubName, inviteCode: newInviteCode(), advisorInviteCode: newInviteCode(), wiredTemplate: DEFAULT_TEMPLATE, features: { ...ALL_ON },
+        id: clubId, name: clubName, inviteCode: newInviteCode(), wiredTemplate: DEFAULT_TEMPLATE, features: { ...ALL_ON },
       });
       await tx.insert(schema.members).values({
         id: newId(), clubId, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role: "admin", title: "President", joined: today(),
@@ -135,27 +135,19 @@ export async function joinClub(code: string): Promise<Result> {
     if (viewer.demo) throw new NotAllowed("Create an account to join a real club.");
     const clean = text(code, 32, { required: true }).toUpperCase().replace(/[^A-Z0-9]/g, "");
     const db = await getDb();
-    const [club] = await db.select().from(schema.clubs).where(or(eq(schema.clubs.inviteCode, clean), eq(schema.clubs.advisorInviteCode, clean)));
+    const [club] = await db.select().from(schema.clubs).where(eq(schema.clubs.inviteCode, clean));
     if (!club) throw new Invalid("That code didn't match any club. Check it with an officer.");
-    const asAdvisor = club.advisorInviteCode === clean;
-    const role = asAdvisor ? ("advisor" as const) : ("member" as const);
-    const title = asAdvisor ? "Advisor" : "Member";
 
+    // Everyone joins as a member; officers set advisors and officers in Members.
     const [already] = await db.select().from(schema.members).where(and(eq(schema.members.clubId, club.id), eq(schema.members.userId, viewer.userId)));
-    if (already) {
-      // A member who later gets the advisor code becomes the advisor (officers stay officers).
-      if (asAdvisor && already.role === "member") await db.update(schema.members).set({ role, title }).where(eq(schema.members.id, already.id));
-    } else {
+    if (!already) {
       const email = viewer.email?.toLowerCase();
       const roster = email ? await db.select().from(schema.members).where(eq(schema.members.clubId, club.id)) : [];
       const match = roster.find((m) => !m.userId && m.email.toLowerCase() === email);
       if (match) {
-        await db
-          .update(schema.members)
-          .set({ userId: viewer.userId, ...(asAdvisor && match.role === "member" ? { role, title } : {}) })
-          .where(eq(schema.members.id, match.id));
+        await db.update(schema.members).set({ userId: viewer.userId }).where(eq(schema.members.id, match.id));
       } else {
-        await db.insert(schema.members).values({ id: newId(), clubId: club.id, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role, title, joined: today() });
+        await db.insert(schema.members).values({ id: newId(), clubId: club.id, userId: viewer.userId, name: viewer.name, email: viewer.email ?? "", role: "member", title: "Member", joined: today() });
       }
     }
     (await cookies()).set(CLUB_COOKIE, club.id, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
@@ -223,14 +215,10 @@ export async function setFeature(clubId: string, key: FeatureKey, on: boolean): 
   });
 }
 
-export async function newInvite(clubId: string, kind: "member" | "advisor" = "member"): Promise<Result> {
+export async function newInvite(clubId: string): Promise<Result> {
   return run(async () => {
     const { db } = await requireMember(clubId, ["admin"]);
-    const which = oneOf(kind, ["member", "advisor"] as const);
-    await db
-      .update(schema.clubs)
-      .set(which === "advisor" ? { advisorInviteCode: newInviteCode() } : { inviteCode: newInviteCode() })
-      .where(eq(schema.clubs.id, clubId));
+    await db.update(schema.clubs).set({ inviteCode: newInviteCode() }).where(eq(schema.clubs.id, clubId));
     return snap(clubId);
   });
 }

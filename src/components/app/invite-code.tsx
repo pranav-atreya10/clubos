@@ -5,7 +5,7 @@ import { Check, Copy, RefreshCw } from "lucide-react";
 import { useClub } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 
-function CodeRow({ kind, code, title, body }: { kind: "member" | "advisor"; code: string; title: string; body: string }) {
+function CodeRow({ code, title, body }: { code: string; title: string; body: string }) {
   const newInvite = useClub((s) => s.newInvite);
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -36,7 +36,7 @@ function CodeRow({ kind, code, title, body }: { kind: "member" | "advisor"; code
             The old code will stop working.
             <button
               onClick={() => {
-                newInvite(kind);
+                newInvite();
                 setConfirm(false);
               }}
               className="font-medium text-danger"
@@ -55,19 +55,14 @@ function CodeRow({ kind, code, title, body }: { kind: "member" | "advisor"; code
 
 export function InviteCode() {
   const code = useClub((s) => s.inviteCode);
-  const advisorCode = useClub((s) => s.advisorInviteCode);
   if (!code) return null;
   return (
     <div className="space-y-6">
-      <CodeRow kind="member" code={code} title="Member code" body="Share with everyone in the club. They join as members." />
-      {advisorCode && (
-        <CodeRow
-          kind="advisor"
-          code={advisorCode}
-          title="Advisor code"
-          body="Give this only to your teacher advisor. They make an account, enter it, and join as Advisor."
-        />
-      )}
+      <CodeRow
+        code={code}
+        title="Invite code"
+        body="Share with everyone, including your advisor. They join as members; make your advisor “Advisor” in Members."
+      />
     </div>
   );
 }

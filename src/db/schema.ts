@@ -51,7 +51,7 @@ export const clubs = pgTable("clubs", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   inviteCode: text("invite_code").notNull(),
-  /** Separate code that joins as Advisor (give it only to the teacher advisor). */
+  /** No longer used (advisors join with the regular code and are set in Members). Kept so old data stays valid. */
   advisorInviteCode: text("advisor_invite_code"),
   advisorName: text("advisor_name").notNull().default("Your advisor"),
   wiredEmail: text("wired_email").notNull().default("amwired@livingston.org"),

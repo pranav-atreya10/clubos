@@ -110,7 +110,7 @@ export default function SettingsPage() {
             </Select>
           </label>
           <p className="text-xs text-muted">
-            Approvals go to {advisorName === "your advisor" ? "your advisor once they join with the advisor code" : advisorName}.
+            Approvals go to {advisorName === "your advisor" ? "your advisor — make them Advisor in Members" : advisorName}.
           </p>
           <label className="block">
             <Label hint="{club} {day} {date} {time} {room} {details}">Draft template</Label>
