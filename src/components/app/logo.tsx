@@ -1,8 +1,15 @@
 import { cn } from "@/lib/cn";
 
+/** Black knight in light mode, green knight in dark mode. */
 export function LogoMark({ className }: { className?: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 rounded-lg", className)} />;
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo-light.png" alt="" aria-hidden className={cn("size-7 rounded-lg dark:hidden", className)} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo-dark.png" alt="" aria-hidden className={cn("hidden size-7 rounded-lg dark:block", className)} />
+    </>
+  );
 }
 
 export function Logo({ className }: { className?: string }) {

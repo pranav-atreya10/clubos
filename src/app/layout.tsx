@@ -15,6 +15,13 @@ const serif = Instrument_Serif({
 export const metadata: Metadata = {
   title: { default: "ClubOS", template: "%s · ClubOS" },
   description: "The operational home for school clubs.",
+  icons: {
+    icon: [
+      { url: "/logo-light.png", media: "(prefers-color-scheme: light)" },
+      { url: "/logo-dark.png", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: "/logo-light.png",
+  },
 };
 
 export const viewport: Viewport = {
