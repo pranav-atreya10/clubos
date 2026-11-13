@@ -297,7 +297,7 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
           <div>
             <p className="font-display text-4xl">Ready when your club is.</p>
-            <p className="mt-2 text-sm text-muted">© {new Date().getFullYear()} ClubOS</p>
+            <p className="mt-2 text-sm text-muted">© {new Date().getFullYear()} ClubOS · Built by Pranav Atreya</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/demo" className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
