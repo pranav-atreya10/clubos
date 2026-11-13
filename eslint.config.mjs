@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Vendored React Bits components (kept as upstream).
     "src/components/reactbits/**",
+    // The Remotion demo video is its own project with its own packages.
+    "video/**",
   ]),
 ]);
 

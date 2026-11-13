@@ -9,8 +9,7 @@ import { cn } from "@/lib/cn";
 import { Page, PageHeader, Card, Chips, SectionTitle } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input, Label, Select, Textarea } from "@/components/ui/field";
-import { Modal } from "@/components/ui/modal";
+import { EventDialog } from "@/components/app/quick-add";
 import { DateBlock, eventLabel, eventTone } from "@/components/app/bits";
 
 type F = "all" | EventType;
@@ -21,68 +20,6 @@ const dotColor: Record<EventType, string> = {
   event: "bg-faint",
   deadline: "bg-warn",
 };
-
-function AddEvent({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const addEvent = useClub((s) => s.addEvent);
-  const settings = useClub((s) => s.settings);
-  const [f, setF] = useState<Omit<ClubEvent, "id">>({
-    title: "",
-    date: daysFromToday(7),
-    time: settings.meetingTime,
-    location: settings.meetingRoom,
-    type: "meeting",
-    notes: "",
-  });
-  const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
-  return (
-    <Modal open={open} onClose={onClose} title="New event">
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!f.title.trim()) return;
-          addEvent({ ...f, title: f.title.trim() });
-          set({ title: "", notes: "" });
-          onClose();
-        }}
-      >
-        <label className="block">
-          <Label>Title</Label>
-          <Input value={f.title} onChange={(e) => set({ title: e.target.value })} placeholder="Weekly meeting" />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <Label>Type</Label>
-            <Select value={f.type} onChange={(e) => set({ type: e.target.value as EventType })}>
-              {(Object.keys(eventLabel) as EventType[]).map((t) => (
-                <option key={t} value={t}>{eventLabel[t]}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="block">
-            <Label>Date</Label>
-            <Input type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} />
-          </label>
-          <label className="block">
-            <Label>Time</Label>
-            <Input value={f.time} onChange={(e) => set({ time: e.target.value })} />
-          </label>
-          <label className="block">
-            <Label>Where</Label>
-            <Input value={f.location} onChange={(e) => set({ location: e.target.value })} />
-          </label>
-        </div>
-        <label className="block">
-          <Label hint="Used in AM Wired auto-fill">Notes</Label>
-          <Textarea rows={2} value={f.notes} onChange={(e) => set({ notes: e.target.value })} />
-        </label>
-        <Button type="submit" variant="primary" className="w-full" disabled={!f.title.trim()}>
-          Add to calendar
-        </Button>
-      </form>
-    </Modal>
-  );
-}
 
 export default function CalendarPage() {
   const events = useClub((s) => s.events);
@@ -116,7 +53,7 @@ export default function CalendarPage() {
         title="Calendar"
         subtitle="Meetings, races, and deadlines in one place."
         actions={
-          role === "admin" && (
+          (role === "admin" || role === "advisor") && (
             <Button variant="primary" onClick={() => setAdding(true)}>
               <Plus className="size-4" /> New event
             </Button>
@@ -203,7 +140,7 @@ export default function CalendarPage() {
                   </p>
                   {e.notes && <p className="mt-1 text-sm text-muted">{e.notes}</p>}
                 </div>
-                {role === "admin" && (
+                {(role === "admin" || role === "advisor") && (
                   <button
                     aria-label={`Delete ${e.title} on ${fmtLong(e.date)}`}
                     onClick={() => removeEvent(e.id)}
@@ -220,7 +157,7 @@ export default function CalendarPage() {
         </section>
       </div>
 
-      <AddEvent open={adding} onClose={() => setAdding(false)} />
+      <EventDialog open={adding} onClose={() => setAdding(false)} />
     </Page>
   );
 }

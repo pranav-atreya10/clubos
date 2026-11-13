@@ -1,21 +1,20 @@
-import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-const isProtected = createRouteMatcher(["/app(.*)"]);
-
-const withClerk = clerkMiddleware(async (auth, req) => {
-  if (isProtected(req)) await auth.protect();
-});
-
-export default function proxy(req: NextRequest, ev: NextFetchEvent) {
-  // Demo mode: no Clerk key, no sign-in required.
-  if (!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return NextResponse.next();
-  return withClerk(req, ev);
+/**
+ * Quick check before the app loads: send people without a session (or demo) to sign in.
+ * This is only a shortcut — every server action checks the session properly again.
+ */
+export default function proxy(req: NextRequest) {
+  const signedIn = req.cookies.has("clubos-session") || req.cookies.has("clubos-demo-user");
+  if (!signedIn && req.method === "GET") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/sign-in";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
-  ],
+  matcher: ["/app/:path*"],
 };

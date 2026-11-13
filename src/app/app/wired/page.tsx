@@ -16,8 +16,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { useClub } from "@/lib/store";
-import { eventsInWeek, mailtoFor, statusMeta, weekRange } from "@/lib/wired";
-import { startOfWeek, toISODate, fmt } from "@/lib/dates";
+import { eventsInRange, mailtoFor, statusMeta, weekRange, cap, currentSlot } from "@/lib/wired";
+import { fmt } from "@/lib/dates";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +31,7 @@ function WiredInner() {
   const params = useSearchParams();
   const s = useClub();
   const weeks = useMemo(() => [...s.wired].sort((a, b) => a.weekOf.localeCompare(b.weekOf)), [s.wired]);
-  const thisWeek = toISODate(startOfWeek(new Date()));
-  const fallback = weeks.find((w) => w.weekOf >= thisWeek)?.id ?? weeks[0]?.id;
+  const fallback = currentSlot(weeks)?.id ?? weeks[0]?.id;
   const selectedId = params.get("week") ?? fallback;
   const w = weeks.find((x) => x.id === selectedId);
   const panel = useRef<HTMLDivElement>(null);
@@ -50,7 +49,8 @@ function WiredInner() {
   const editable = w.status === "draft" || w.status === "changes";
   const words = w.message.trim() ? w.message.trim().split(/\s+/).length : 0;
   const seconds = Math.round(words / 2.6);
-  const weekEvents = eventsInWeek(s.events, w.weekOf);
+  const calendarOn = s.settings.features.calendar;
+  const weekEvents = eventsInRange(s.events, w.weekOf, w.endDate);
   const hasRace = weekEvents.some((e) => e.type === "race");
 
   const copy = async () => {
@@ -65,13 +65,13 @@ function WiredInner() {
         title="AM Wired"
         subtitle={
           <>
-            Plan your morning announcements weeks ahead. {s.settings.advisorName} approves them here, then you send
+            Plan your morning announcements ahead. {cap(s.settings.advisorName)} approves them here, then you send
             the final version to <span className="font-medium text-fg">{s.settings.wiredEmail}</span> in one click.
           </>
         }
         actions={
           <Button onClick={s.wiredAddWeek}>
-            <Plus className="size-4" /> Add week
+            <Plus className="size-4" /> Add another
           </Button>
         }
       />
@@ -84,8 +84,8 @@ function WiredInner() {
         <div ref={panel} className="rounded-3xl border border-line bg-surface p-5 sm:p-8">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm text-muted">Week of</p>
-              <h2 className="font-display text-4xl leading-tight">{weekRange(w.weekOf)}</h2>
+              <p className="text-sm text-muted">{w.endDate && w.endDate !== w.weekOf ? "Covers" : "For"}</p>
+              <h2 className="font-display text-4xl leading-tight">{weekRange(w)}</h2>
             </div>
             <Badge tone={meta.tone} dot className="mt-1 text-[13px]">
               {meta.label}
@@ -94,7 +94,7 @@ function WiredInner() {
 
           {w.status === "changes" && w.advisorNote && (
             <div className="mb-6 rounded-2xl bg-danger-soft p-4 text-sm">
-              <p className="mb-1 font-semibold text-danger">{s.settings.advisorName} says:</p>
+              <p className="mb-1 font-semibold text-danger">{cap(s.settings.advisorName)} says:</p>
               <p className="text-fg">“{w.advisorNote}”</p>
             </div>
           )}
@@ -132,7 +132,7 @@ function WiredInner() {
                     onClick={() => s.wiredGenerate(w.id)}
                     className="inline-flex items-center gap-1.5 font-medium text-accent-text hover:underline underline-offset-4"
                   >
-                    <Wand2 className="size-3.5" /> Auto-fill from calendar
+                    <Wand2 className="size-3.5" /> {calendarOn ? "Auto-fill from calendar" : "Auto-fill draft"}
                   </button>
                 )}
               </div>
@@ -152,7 +152,7 @@ function WiredInner() {
                 {w.status === "pending" && (
                   <>
                     <p className="flex items-center text-sm text-muted">
-                      {s.settings.advisorName} can approve it from their advisor account.
+                      {cap(s.settings.advisorName)} can approve it from their advisor account.
                     </p>
                     <Button variant="ghost" onClick={() => s.wiredRecall(w.id)}>
                       <Undo2 className="size-4" /> Pull back to edit
@@ -161,7 +161,7 @@ function WiredInner() {
                 )}
                 {w.status === "approved" && (
                   <>
-                    <a href={mailtoFor(s.settings, w.weekOf, w.message)}>
+                    <a href={mailtoFor(s.settings, w, w.message)}>
                       <Button variant="accent">
                         <Mail className="size-4" /> Open in email app
                       </Button>
@@ -190,9 +190,10 @@ function WiredInner() {
 
           <div className="my-8 h-px bg-line" />
 
-          <div className="grid gap-8 sm:grid-cols-2">
+          <div className={calendarOn ? "grid gap-8 sm:grid-cols-2" : ""}>
+            {calendarOn && (
             <div>
-              <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">On the calendar this week</p>
+              <p className="mb-3 text-xs font-medium tracking-wide text-muted uppercase">On the calendar</p>
               {weekEvents.length === 0 ? (
                 <p className="text-sm text-muted">Nothing scheduled. Good week to skip?</p>
               ) : (
@@ -209,9 +210,10 @@ function WiredInner() {
                 </ul>
               )}
               {!hasRace && w.status === "draft" && weekEvents.length > 0 && (
-                <p className="mt-3 text-xs text-faint">No race this week — you can skip if there’s nothing to announce.</p>
+                <p className="mt-3 text-xs text-faint">No race then — you can skip if there’s nothing to announce.</p>
               )}
             </div>
+            )}
             <History items={w.history} />
           </div>
         </div>

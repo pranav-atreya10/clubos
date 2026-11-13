@@ -2,27 +2,56 @@ import type {
   Announcement,
   ClubEvent,
   ClubSettings,
+  HistoryEntry,
   Member,
   Resource,
   Task,
   WiredWeek,
 } from "./types";
+import { ALL_ON } from "./features";
 import { addDays, daysFromToday, startOfWeek, toISODate } from "./dates";
 
 export const DEFAULT_TEMPLATE =
-  "Attention racers! {club} meets this {day}, {date}, at {time} in {room}. {details} Everyone is welcome — see you there!";
+  "Attention members! {club} meets this {day}, {date}, at {time} in {room}. {details} Everyone is welcome — see you there!";
 
 export const seedSettings = (): ClubSettings => ({
   clubName: "Velocity Racing Club",
   advisorName: "Mr. Anderson",
   advisorEmail: "anderson@school.edu",
-  wiredEmail: "amwired@school.edu",
-  attendanceUrl: "https://example.com/attendance",
+  wiredEmail: "amwired@livingston.org",
+  // NOTE: placeholder — not the real attendance site yet.
+  attendanceUrl: "https://livingston.schoology.com",
   meetingDay: "Wednesday",
   meetingTime: "3:15 PM",
   meetingRoom: "Room 214",
   wiredTemplate: DEFAULT_TEMPLATE,
+  wiredDays: 7,
+  features: { ...ALL_ON },
 });
+
+const ago = (days: number, hour = 16) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+
+/** A believable rating history: first rated a month ago, sometimes changed since. */
+const ratingHistory = (rating: number | null, earlier?: { rating: number; by: string; days: number; note?: string }): HistoryEntry[] => {
+  if (rating === null) return [];
+  if (!earlier) return [{ at: ago(30), by: "Pranav Atreya", action: `Rated ${rating}/10`, kind: "rating", prev: null }];
+  return [
+    { at: ago(30), by: "Pranav Atreya", action: `Rated ${earlier.rating}/10`, kind: "rating", prev: null },
+    { at: ago(earlier.days), by: earlier.by, action: `Changed rating from ${earlier.rating}/10 to ${rating}/10`, kind: "rating", prev: earlier.rating },
+    ...(earlier.note ? [{ at: ago(earlier.days, 17), by: earlier.by, action: `Updated note: “${earlier.note}”` }] : []),
+  ];
+};
+
+const CHANGES: Record<string, { rating: number; by: string; days: number; note?: string }> = {
+  u4: { rating: 7, by: "Sam Rivera", days: 6, note: "Never misses. Led the pit-stop drill unprompted." },
+  u9: { rating: 6, by: "Dev Mehta", days: 4, note: "Missed the last 3 meetings." },
+  u10: { rating: 6, by: "Mr. Anderson", days: 9 },
+};
 
 const m = (
   id: string,
@@ -38,11 +67,15 @@ const m = (
   email: `${name.split(" ")[0].toLowerCase()}@school.edu`,
   grade,
   title,
+  role: title !== "Member" ? "admin" : "member",
   isOfficer: title !== "Member",
+  hasAccount: false,
+  avatar: null,
   joined: daysFromToday(-Math.floor(Math.random() * 400 + 20)),
   rating,
   ratingNote: note,
   boardCandidate,
+  ratingHistory: ratingHistory(rating, CHANGES[id]),
 });
 
 export const seedMembers = (): Member[] => [
@@ -81,36 +114,37 @@ export const seedWired = (template: string): WiredWeek[] => {
   const mon = startOfWeek(new Date());
   const now = new Date().toISOString();
   const wk = (n: number) => toISODate(addDays(mon, n * 7));
+  const wkEnd = (n: number) => toISODate(addDays(mon, n * 7 + 4));
   void template;
   return [
     {
-      id: "w-1", weekOf: wk(-1), status: "sent",
-      message: "Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We're prepping for the Regional Qualifier — new members welcome!",
+      id: "w-1", weekOf: wk(-1), endDate: wkEnd(-1), status: "sent",
+      message: "Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We're prepping for the Regional Qualifier — new members welcome!",
       advisorNote: "", updatedAt: now,
       history: [{ at: now, by: "Mr. Anderson", action: "Approved" }, { at: now, by: "Dev Mehta", action: "Marked as sent" }],
     },
     {
-      id: "w0", weekOf: wk(0), status: "pending",
-      message: "Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We'll walk the track plan for Saturday's Regional Qualifier — the bus leaves at 7:00 AM. Everyone is welcome — see you there!",
+      id: "w0", weekOf: wk(0), endDate: wkEnd(0), status: "pending",
+      message: "Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We'll walk the track plan for Saturday's Regional Qualifier — the bus leaves at 7:00 AM. Everyone is welcome — see you there!",
       advisorNote: "", updatedAt: now,
       history: [{ at: now, by: "Dev Mehta", action: "Sent to Mr. Anderson for approval" }],
     },
     {
-      id: "w1", weekOf: wk(1), status: "draft",
-      message: "Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. Race debrief and car tune-ups. Permission slips for State are due Tuesday! Everyone is welcome — see you there!",
+      id: "w1", weekOf: wk(1), endDate: wkEnd(1), status: "draft",
+      message: "Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. Race debrief and car tune-ups. Permission slips for State are due Tuesday! Everyone is welcome — see you there!",
       advisorNote: "", updatedAt: now, history: [],
     },
     {
-      id: "w2", weekOf: wk(2), status: "draft",
+      id: "w2", weekOf: wk(2), endDate: wkEnd(2), status: "draft",
       message: "", advisorNote: "", updatedAt: now, history: [],
     },
     {
-      id: "w3", weekOf: wk(3), status: "skipped",
+      id: "w3", weekOf: wk(3), endDate: wkEnd(3), status: "skipped",
       message: "", advisorNote: "", updatedAt: now,
       history: [{ at: now, by: "Sam Rivera", action: "Skipped — no race this week" }],
     },
     {
-      id: "w4", weekOf: wk(4), status: "draft",
+      id: "w4", weekOf: wk(4), endDate: wkEnd(4), status: "draft",
       message: "", advisorNote: "", updatedAt: now, history: [],
     },
   ];
@@ -122,14 +156,28 @@ export const seedAnnouncements = (): Announcement[] => [
   { id: "a3", title: "Welcome to our new members!", body: "We had 6 people join at the club fair. Say hi and help them find a pit crew.", date: daysFromToday(-9), author: "Pranav Atreya", pinned: false },
 ];
 
+const NAMES: Record<string, string> = {
+  u1: "Pranav Atreya", u2: "Sam Rivera", u3: "Dev Mehta", u4: "Maya Chen", u5: "Jordan Reyes", u7: "Leo Park", u10: "Nina Okafor",
+};
+const task = (id: string, title: string, assigneeId: string, dueIn: number, status: Task["status"], createdDaysAgo: number): Task => {
+  const history: HistoryEntry[] = [
+    { at: ago(createdDaysAgo, 15), by: "Dev Mehta", action: `Created and assigned to ${NAMES[assigneeId]}` },
+  ];
+  if (status !== "todo") history.push({ at: ago(Math.max(0, createdDaysAgo - 2), 18), by: NAMES[assigneeId], action: "Moved to In progress" });
+  if (status === "done") history.push({ at: ago(Math.max(0, createdDaysAgo - 3), 19), by: NAMES[assigneeId], action: "Marked done" });
+  return { id, title, assigneeId, due: daysFromToday(dueIn), status, history };
+};
+
 export const seedTasks = (): Task[] => [
-  { id: "t1", title: "Submit next week's AM Wired draft", assigneeId: "u3", due: daysFromToday(3), status: "todo" },
-  { id: "t2", title: "Book the bus for State Invitational", assigneeId: "u2", due: daysFromToday(5), status: "doing" },
-  { id: "t3", title: "Collect permission slips", assigneeId: "u7", due: daysFromToday(4), status: "todo" },
-  { id: "t4", title: "Post meeting recap on Schoology", assigneeId: "u3", due: daysFromToday(-1), status: "todo" },
-  { id: "t5", title: "Order team shirts", assigneeId: "u10", due: daysFromToday(12), status: "todo" },
-  { id: "t6", title: "Update race roster", assigneeId: "u1", due: daysFromToday(-2), status: "done" },
-  { id: "t7", title: "Clean the pit-stop kit", assigneeId: "u5", due: daysFromToday(1), status: "doing" },
+  task("t1", "Submit next week's AM Wired draft", "u3", 3, "todo", 2),
+  task("t2", "Book the bus for State Invitational", "u2", 5, "doing", 6),
+  task("t3", "Collect permission slips", "u7", 4, "todo", 5),
+  task("t4", "Post meeting recap on Schoology", "u3", -1, "todo", 4),
+  task("t5", "Order team shirts", "u10", 12, "todo", 3),
+  task("t6", "Update race roster", "u1", -2, "done", 8),
+  task("t7", "Clean the pit-stop kit", "u5", 1, "doing", 4),
+  task("t8", "Run the pit-stop drill at Wednesday's meeting", "u4", 6, "todo", 1),
+  task("t9", "Bring the timing stopwatches", "u4", 2, "doing", 3),
 ];
 
 export const seedResources = (): Resource[] => [

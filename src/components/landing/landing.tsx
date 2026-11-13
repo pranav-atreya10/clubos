@@ -15,6 +15,7 @@ import {
   Mail,
   Megaphone,
   PenLine,
+  Play,
   ShieldCheck,
   Star,
 } from "lucide-react";
@@ -22,7 +23,6 @@ import { Logo } from "@/components/app/logo";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import SplitText from "@/components/reactbits/SplitText";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
-import { clerkEnabled } from "@/lib/clerk";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -75,7 +75,7 @@ function PreviewWindow() {
             </span>
           </div>
           <p className="mt-5 rounded-xl border border-line bg-bg-subtle p-4 text-[15px] leading-relaxed">
-            Attention racers! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We’ll walk the track plan for
+            Attention members! Velocity Racing Club meets this Wednesday at 3:15 PM in Room 214. We’ll walk the track plan for
             Saturday’s Regional Qualifier — the bus leaves at 7:00 AM. Everyone is welcome!
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -97,7 +97,6 @@ function PreviewWindow() {
 export function Landing() {
   const root = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
-  const appHref = clerkEnabled ? "/sign-in" : "/app";
 
   useGSAP(
     () => {
@@ -152,8 +151,11 @@ export function Landing() {
           <Logo />
           <div className="flex items-center gap-2">
             <ThemeToggle className="hidden sm:inline-flex" />
-            <Link href={appHref} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-fg px-4 text-sm font-medium text-bg transition-opacity hover:opacity-85">
-              {clerkEnabled ? "Sign in" : "Open demo"} <ArrowRight className="size-3.5" />
+            <Link href="/sign-in" className="hidden h-9 items-center rounded-full px-3 text-sm font-medium text-muted transition-colors hover:text-fg sm:inline-flex">
+              Sign in
+            </Link>
+            <Link href="/sign-up" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-fg px-4 text-sm font-medium text-bg transition-opacity hover:opacity-85">
+              Get started <ArrowRight className="size-3.5" />
             </Link>
           </div>
         </div>
@@ -184,12 +186,12 @@ export function Landing() {
           your next leaders.
         </p>
         <div className="hero-fade mt-9 flex flex-wrap justify-center gap-3">
-          <Link href={appHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg transition-colors hover:bg-accent-hover">
-            {clerkEnabled ? "Get started" : "Try the demo"} <ArrowRight className="size-4" />
+          <Link href="/demo" className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg transition-colors hover:bg-accent-hover">
+            Try the demo <ArrowRight className="size-4" />
           </Link>
-          <a href="#how" className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
-            How it works
-          </a>
+          <Link href="/demovid" className="inline-flex h-12 items-center gap-2 rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
+            <Play className="size-4 fill-current" /> Watch the video
+          </Link>
         </div>
       </section>
 
@@ -297,9 +299,14 @@ export function Landing() {
             <p className="font-display text-4xl">Ready when your club is.</p>
             <p className="mt-2 text-sm text-muted">© {new Date().getFullYear()} ClubOS</p>
           </div>
-          <Link href={appHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-fg px-6 font-medium text-bg transition-opacity hover:opacity-85">
-            {clerkEnabled ? "Sign in" : "Open the demo"} <ArrowRight className="size-4" />
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/demo" className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
+              Try the demo
+            </Link>
+            <Link href="/sign-up" className="inline-flex h-12 items-center gap-2 rounded-full bg-fg px-6 font-medium text-bg transition-opacity hover:opacity-85">
+              Get started <ArrowRight className="size-4" />
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

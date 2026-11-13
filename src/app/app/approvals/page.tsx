@@ -15,6 +15,7 @@ function ApprovalCard({ w }: { w: WiredWeek }) {
   const approve = useClub((s) => s.wiredApprove);
   const requestChanges = useClub((s) => s.wiredRequestChanges);
   const club = useClub((s) => s.settings.clubName);
+  const members = useClub((s) => s.members);
   const [text, setText] = useState(w.message);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -24,11 +25,11 @@ function ApprovalCard({ w }: { w: WiredWeek }) {
   return (
     <Card className="p-6 sm:p-7">
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <Avatar name={submitter} />
+        <Avatar name={submitter} src={members.find((m) => m.name === submitter)?.avatar} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">{submitter}</p>
           <p className="text-xs text-muted">
-            {club} · for the week of {weekRange(w.weekOf)}
+            {club} · for {weekRange(w)}
           </p>
         </div>
         {edited && <Badge tone="warn">You edited this</Badge>}
@@ -108,7 +109,7 @@ export default function ApprovalsPage() {
             {decided.map((w) => (
               <div key={w.id} className="flex items-center gap-4 px-5 py-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">Week of {weekRange(w.weekOf)}</p>
+                  <p className="text-sm font-medium">{weekRange(w)}</p>
                   <p className="truncate text-xs text-muted">{w.message}</p>
                 </div>
                 <Badge tone={statusMeta[w.status].tone} dot>

@@ -22,7 +22,7 @@ export const NAV: NavItem[] = [
   { href: "/app/wired", group: "Communicate", label: "AM Wired", icon: Radio, roles: ["admin"] },
   { href: "/app/announcements", group: "Communicate", label: "Announcements", icon: Megaphone, roles: ["admin", "advisor", "member"] },
   { href: "/app/calendar", group: "Club", label: "Calendar", icon: CalendarDays, roles: ["admin", "advisor", "member"] },
-  { href: "/app/tasks", group: "Club", label: "Tasks", icon: CheckSquare, roles: ["admin", "member"] },
+  { href: "/app/tasks", group: "Club", label: "Tasks", icon: CheckSquare, roles: ["admin", "advisor", "member"] },
   { href: "/app/members", group: "Leaders", label: "Members", icon: Users, roles: ["admin", "advisor"] },
   { href: "/app/resources", group: "Club", label: "Resources", icon: FolderOpen, roles: ["admin", "advisor", "member"] },
   { href: "/app/settings", group: "Leaders", label: "Settings", icon: Settings, roles: ["admin"] },

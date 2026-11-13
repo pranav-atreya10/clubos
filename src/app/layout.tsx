@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "@/components/providers/providers";
-import { clerkEnabled } from "@/lib/clerk";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -27,7 +25,6 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const body = <Providers>{children}</Providers>;
   return (
     <html
       lang="en"
@@ -35,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} ${serif.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        {clerkEnabled ? <ClerkProvider>{body}</ClerkProvider> : body}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

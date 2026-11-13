@@ -1,16 +1,36 @@
+import type { Features } from "./features";
+
 export type Role = "admin" | "advisor" | "member";
+
+/** One line in a version history: who did what, and when. */
+export type HistoryEntry = {
+  at: string; // ISO timestamp
+  by: string;
+  action: string;
+  /** For rating changes: the rating before this change, so quick edits merge into one entry. */
+  kind?: "rating";
+  prev?: number | null;
+};
 
 export type Member = {
   id: string;
   name: string;
   email: string;
   grade: 9 | 10 | 11 | 12;
-  title: string; // "President", "Officer", "Member", ...
+  title: string; // "President", "Treasurer", "Member", ...
+  /** Permission level in this club. */
+  role: Role;
+  /** Same as role === "admin". */
   isOfficer: boolean;
+  /** Whether this person has signed in and joined (vs. just added by an officer). */
+  hasAccount: boolean;
+  /** Profile picture URL, or null for initials. */
+  avatar: string | null;
   joined: string; // ISO date
   rating: number | null; // leaders-only, out of 10
   ratingNote: string;
   boardCandidate: boolean;
+  ratingHistory: HistoryEntry[];
 };
 
 export type EventType = "meeting" | "race" | "event" | "deadline";
@@ -35,7 +55,8 @@ export type WiredStatus =
 
 export type WiredWeek = {
   id: string;
-  weekOf: string; // Monday, YYYY-MM-DD
+  weekOf: string; // first day this message covers, YYYY-MM-DD
+  endDate: string | null; // last day it covers
   status: WiredStatus;
   message: string;
   advisorNote: string;
@@ -60,6 +81,7 @@ export type Task = {
   assigneeId: string;
   due: string;
   status: TaskStatus;
+  history: HistoryEntry[];
 };
 
 export type ResourceKind = "doc" | "slides" | "link" | "sheet";
@@ -76,7 +98,10 @@ export type Resource = {
 
 export type ClubSettings = {
   clubName: string;
+  /** Name(s) of the club's advisor(s), from Members. "your advisor" if there isn't one yet. */
   advisorName: string;
+  /** How many days one AM Wired message covers (1 = every school day). */
+  wiredDays: number;
   advisorEmail: string;
   wiredEmail: string;
   attendanceUrl: string;
@@ -84,4 +109,36 @@ export type ClubSettings = {
   meetingTime: string;
   meetingRoom: string;
   wiredTemplate: string;
+  features: Features;
+};
+
+export type ClubSummary = { id: string; name: string; role: Role };
+
+/** Everything the app needs for one person in one club — already filtered to what they may see. */
+export type ClubData = {
+  id: string;
+  role: Role;
+  meId: string;
+  /** Only officers get the invite code. */
+  inviteCode: string | null;
+  settings: ClubSettings;
+  members: Member[];
+  events: ClubEvent[];
+  wired: WiredWeek[];
+  announcements: Announcement[];
+  tasks: Task[];
+  resources: Resource[];
+};
+
+export type Snapshot = {
+  viewer: {
+    userId: string;
+    name: string;
+    demo: boolean;
+    avatar: string | null;
+    /** Officer/advisor somewhere without a passkey or authenticator app yet. */
+    needsSecurity: boolean;
+  };
+  clubs: ClubSummary[];
+  club: ClubData | null;
 };

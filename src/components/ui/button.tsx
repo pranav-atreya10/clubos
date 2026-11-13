@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost" | "accent" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "accent" | "danger" | "onAccent";
 type Size = "sm" | "md";
 
 const variants: Record<Variant, string> = {
@@ -10,6 +10,8 @@ const variants: Record<Variant, string> = {
   secondary: "bg-surface text-fg border border-line hover:border-line-strong hover:bg-surface-2",
   ghost: "text-muted hover:text-fg hover:bg-surface-2",
   danger: "text-danger hover:bg-danger-soft",
+  // White button on the green cards — same in light and dark mode.
+  onAccent: "bg-white text-[#0b0b0b] hover:bg-white/90",
 };
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-[13px] gap-1.5",

@@ -1,13 +1,8 @@
 import { cn } from "@/lib/cn";
 
 export function LogoMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden className={cn("size-7", className)}>
-      <rect width="32" height="32" rx="9" className="fill-fg" />
-      <circle cx="16" cy="16" r="7.5" fill="none" strokeWidth="3" className="stroke-bg" />
-      <circle cx="21.3" cy="10.7" r="3" className="fill-accent-text" />
-    </svg>
-  );
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 rounded-lg", className)} />;
 }
 
 export function Logo({ className }: { className?: string }) {

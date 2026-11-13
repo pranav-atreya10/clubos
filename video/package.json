@@ -1,0 +1,20 @@
+{
+  "name": "clubos-video",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render ClubOSDemo out/clubos-demo.mp4",
+    "still": "remotion still ClubOSDemo out/still.png"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.543",
+    "@remotion/fonts": "^4.0.543",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "^4.0.543"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}
