@@ -29,6 +29,13 @@
       "when": 1794528547240,
       "tag": "0003_security_and_wired",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794698826134,
+      "tag": "0004_colors_chat_calendar",
+      "breakpoints": true
     }
   ]
 }

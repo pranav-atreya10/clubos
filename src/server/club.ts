@@ -6,6 +6,7 @@ import { addDays, fromISODate, startOfWeek, toISODate } from "@/lib/dates";
 import { ALL_ON } from "@/lib/features";
 import { ensureDemoClub } from "./demo-seed";
 import { getActiveClubCookie, getViewer, type Viewer } from "./session";
+import { randomBytes } from "node:crypto";
 import { newId } from "./ids";
 import { hasSecondFactor } from "./auth";
 
@@ -78,12 +79,23 @@ const toHistory = (rows: (typeof schema.activity.$inferSelect)[]): Map<string, H
 };
 
 /** Loads one club for one person, keeping only what their role may see. */
-export async function loadClub(db: DB, club: ClubRow, me: MemberRow): Promise<ClubData> {
+export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise<ClubData> {
+  let club = clubRow;
   const role = me.role as Role;
   const leader = role === "admin" || role === "advisor";
   if (leader) await ensureUpcomingSlots(db, club.id, club.wiredDays);
 
   const recent = toISODate(addDays(new Date(), -14));
+  if (!club.calendarToken) {
+    club = { ...club, calendarToken: randomBytes(18).toString("base64url") };
+    await db.update(schema.clubs).set({ calendarToken: club.calendarToken }).where(eq(schema.clubs.id, club.id));
+  }
+  const chat = await db
+    .select()
+    .from(schema.messages)
+    .where(eq(schema.messages.clubId, club.id))
+    .orderBy(desc(schema.messages.createdAt))
+    .limit(150);
   const [members, events, wired, announcements, tasks, resources, activity] = await Promise.all([
     db.select().from(schema.members).where(eq(schema.members.clubId, club.id)).orderBy(asc(schema.members.name)),
     db.select().from(schema.events).where(eq(schema.events.clubId, club.id)).orderBy(asc(schema.events.date)),
@@ -146,7 +158,7 @@ export async function loadClub(db: DB, club: ClubRow, me: MemberRow): Promise<Cl
     // Members don't need the AM Wired setup (template, email).
     settings: leader ? settingsOf(club, advisorNameOf(members)) : { ...settingsOf(club, advisorNameOf(members)), wiredTemplate: "", wiredEmail: "" },
     members: members.map(shapeMember),
-    events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, type: e.type, notes: e.notes })),
+    events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, type: e.type, notes: e.notes, color: e.color })),
     wired: wired.map((w) => ({
       id: w.id,
       weekOf: w.weekOf,
@@ -158,7 +170,9 @@ export async function loadClub(db: DB, club: ClubRow, me: MemberRow): Promise<Cl
       history: hist.get(w.id) ?? [],
     })),
     announcements: announcements.map((a) => ({ id: a.id, title: a.title, body: a.body, date: a.date, author: a.author, pinned: a.pinned })),
-    tasks: tasks.map((t) => ({ id: t.id, title: t.title, assigneeId: t.assigneeId ?? "", due: t.due, status: t.status, history: hist.get(t.id) ?? [] })),
+    tasks: tasks.map((t) => ({ id: t.id, title: t.title, assigneeId: t.assigneeId ?? "", due: t.due, status: t.status, color: t.color, history: hist.get(t.id) ?? [] })),
+    messages: chat.reverse().map((m) => ({ id: m.id, memberId: m.memberId, author: m.author, body: m.body, at: m.createdAt.toISOString() })),
+    calendarUrl: `/api/calendar/${club.calendarToken}.ics`,
     resources: resources
       .filter((r) => leader || r.category !== "Officers")
       .map((r) => ({ id: r.id, title: r.title, kind: r.kind, url: r.url, category: r.category, addedBy: r.addedBy, date: r.date })),

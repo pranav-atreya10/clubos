@@ -13,6 +13,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { Input, Label, Select } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { History } from "@/components/wired/history";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { colorHex } from "@/lib/colors";
 
 const COLS: { s: TaskStatus; label: string }[] = [
   { s: "todo", label: "To do" },
@@ -27,7 +29,11 @@ function TaskCard({ t, canMove, canDelete, onOpen }: { t: Task; canMove: boolean
   const who = person?.name ?? "Unassigned";
   const overdue = t.status !== "done" && t.due < daysFromToday(0);
   return (
-    <div data-reveal className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
+    <div
+      data-reveal
+      className="group rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-line-strong"
+      style={t.color ? { borderLeft: `4px solid ${colorHex(t.color)}` } : undefined}
+    >
       <div className="flex items-start gap-3">
         <button
           aria-label={t.status === "done" ? "Mark not done" : "Move forward"}
@@ -71,6 +77,9 @@ function TaskCard({ t, canMove, canDelete, onOpen }: { t: Task; canMove: boolean
 function TaskDetails({ t, onClose }: { t: Task; onClose: () => void }) {
   const members = useClub((s) => s.members);
   const live = useClub((s) => s.tasks.find((x) => x.id === t.id)) ?? t;
+  const role = useClub((s) => s.role);
+  const setColor = useClub((s) => s.setColor);
+  const canColor = role === "admin" || role === "advisor";
   const who = members.find((m) => m.id === live.assigneeId)?.name ?? "Unassigned";
   const status = COLS.find((c) => c.s === live.status)!.label;
   return (
@@ -89,6 +98,12 @@ function TaskDetails({ t, onClose }: { t: Task; onClose: () => void }) {
           <dd className="mt-1 font-medium">{status}</dd>
         </div>
       </dl>
+      {canColor && (
+        <div className="mb-5">
+          <p className="mb-2 text-xs text-muted">Color</p>
+          <ColorPicker value={live.color} onChange={(c) => setColor("task", live.id, c)} />
+        </div>
+      )}
       <div className="max-h-72 overflow-y-auto border-t border-line pt-5">
         <History title="Version history" items={live.history} empty="No changes recorded yet." />
       </div>
@@ -107,6 +122,7 @@ export default function TasksPage() {
   const [title, setTitle] = useState("");
   const [assigneeId, setAssigneeId] = useState(s.members.find((m) => m.role !== "advisor")?.id ?? "");
   const [due, setDue] = useState(daysFromToday(7));
+  const [color, setColorPick] = useState<string | null>(null);
 
   // Members only ever see their own tasks. Officers can switch; the advisor sees everything.
   const onlyMine = role === "member" || (isAdmin && scope === "mine");
@@ -184,7 +200,7 @@ export default function TasksPage() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!title.trim()) return;
-            s.addTask({ title: title.trim(), assigneeId, due });
+            s.addTask({ title: title.trim(), assigneeId, due, color });
             setTitle("");
             setOpen(false);
           }}
@@ -206,6 +222,10 @@ export default function TasksPage() {
               <Label>Due</Label>
               <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
             </label>
+          </div>
+          <div>
+            <Label>Color</Label>
+            <ColorPicker value={color} onChange={setColorPick} />
           </div>
           <Button type="submit" variant="primary" className="w-full" disabled={!title.trim()}>
             Assign task

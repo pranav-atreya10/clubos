@@ -4,6 +4,7 @@ import { Flag, Clock, MapPin, Pin } from "lucide-react";
 import type { Announcement, ClubEvent, EventType } from "@/lib/types";
 import { fmt, fmtShort, relativeDay } from "@/lib/dates";
 import { cn } from "@/lib/cn";
+import { colorHex } from "@/lib/colors";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { useClub } from "@/lib/store";
@@ -31,7 +32,8 @@ export function DateBlock({ date, className }: { date: string; className?: strin
 }
 
 export function EventCard({ e }: { e: ClubEvent }) {
-  const race = e.type === "race";
+  const race = e.type === "race" && !e.color;
+  const tint = colorHex(e.color);
   return (
     <div
       data-reveal
@@ -39,7 +41,7 @@ export function EventCard({ e }: { e: ClubEvent }) {
         "group relative flex w-[260px] shrink-0 flex-col justify-between overflow-hidden rounded-2xl border p-5 transition-transform duration-300 hover:-translate-y-0.5 sm:w-auto",
         race ? "border-transparent bg-accent text-accent-fg" : "border-line bg-surface",
       )}
-      style={{ minHeight: 168 }}
+      style={{ minHeight: 168, ...(tint ? { borderTop: `4px solid ${tint}` } : {}) }}
     >
       {race && (
         <Flag className="absolute -right-3 -bottom-3 size-28 rotate-[-12deg] opacity-10" strokeWidth={1.2} />

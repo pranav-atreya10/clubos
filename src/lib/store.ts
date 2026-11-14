@@ -7,6 +7,7 @@ import type {
   ClubSettings,
   ClubSummary,
   Member,
+  Message,
   Resource,
   Role,
   Snapshot,
@@ -37,6 +38,8 @@ type Data = {
   announcements: Announcement[];
   tasks: Task[];
   resources: Resource[];
+  messages: Message[];
+  calendarUrl: string;
 };
 
 type State = Data & {
@@ -82,7 +85,10 @@ type State = Data & {
   removeAnnouncement: (id: string) => void;
   togglePin: (id: string) => void;
 
-  addTask: (t: Pick<Task, "title" | "assigneeId" | "due">) => void;
+  addTask: (t: Pick<Task, "title" | "assigneeId" | "due" | "color">) => void;
+  setColor: (kind: "event" | "task", id: string, color: string | null) => void;
+  sendMessage: (body: string) => void;
+  deleteMessage: (id: string) => void;
   setTaskStatus: (id: string, s: TaskStatus) => void;
   removeTask: (id: string) => void;
 
@@ -125,6 +131,8 @@ const EMPTY: Data = {
   announcements: [],
   tasks: [],
   resources: [],
+  messages: [],
+  calendarUrl: "",
 };
 
 const fromSnapshot = (s: Snapshot): Partial<State> => {
@@ -145,6 +153,8 @@ const fromSnapshot = (s: Snapshot): Partial<State> => {
     announcements: c.announcements,
     tasks: c.tasks,
     resources: c.resources,
+    messages: c.messages,
+    calendarUrl: c.calendarUrl,
   };
 };
 
@@ -330,6 +340,18 @@ export const useClub = create<State>()((set, get) => {
       if (!clubId) return;
       void handle(api.handDown(clubId, toId, leave)).then((err) => err && set({ error: err }));
     },
+
+    setColor: (kind, id, color) =>
+      void save(
+        (s) => (kind === "event" ? { events: s.events.map((e) => (e.id === id ? { ...e, color } : e)) } : { tasks: s.tasks.map((t) => (t.id === id ? { ...t, color } : t)) }),
+        (c) => api.setColor(c, kind, id, color),
+      ),
+    sendMessage: (body) =>
+      void save(
+        (s) => ({ messages: [...s.messages, { id: `tmp-${Date.now()}`, memberId: s.meId, author: s.userName, body, at: new Date().toISOString() }] }),
+        (c) => api.sendMessage(c, body),
+      ),
+    deleteMessage: (id) => void save((s) => ({ messages: s.messages.filter((m) => m.id !== id) }), (c) => api.deleteMessage(c, id)),
 
     addResource: (r) => void save(null, (c) => api.addResource(c, r)),
     removeResource: (id) => void save((s) => ({ resources: s.resources.filter((r) => r.id !== id) }), (c) => api.removeResource(c, id)),

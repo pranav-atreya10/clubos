@@ -13,6 +13,7 @@ import { NotAllowed, advisorNameFor, loadSnapshot, requireMember, settingsOf } f
 import { CLUB_COOKIE, DEMO_USERS, DEMO_USER_COOKIE, getViewer } from "./session";
 import { newId, newInviteCode } from "./ids";
 import { ALL_ON } from "@/lib/features";
+import { COLOR_KEYS } from "@/lib/colors";
 
 export type Result = { ok: true; snapshot: Snapshot } | { ok: false; error: string };
 
@@ -344,12 +345,12 @@ async function memberIn(db: DB, clubId: string, memberId: unknown) {
   return m;
 }
 
-export async function addTask(clubId: string, t: { title: string; assigneeId: string; due: string }): Promise<Result> {
+export async function addTask(clubId: string, t: { title: string; assigneeId: string; due: string; color?: string | null }): Promise<Result> {
   return run(async () => {
     const { db, viewer } = await requireMember(clubId, ["admin"]);
     const who = await memberIn(db, clubId, t?.assigneeId);
     const taskId = newId();
-    await db.insert(schema.tasks).values({ id: taskId, clubId, title: text(t?.title, 200, { required: true }), assigneeId: who.id, due: isoDate(t?.due) });
+    await db.insert(schema.tasks).values({ id: taskId, clubId, title: text(t?.title, 200, { required: true }), assigneeId: who.id, due: isoDate(t?.due), color: color(t?.color) });
     await log(db, clubId, "task", taskId, viewer.name, `Created and assigned to ${who.name}`);
     return snap(clubId);
   });
@@ -381,12 +382,14 @@ export async function removeTask(clubId: string, taskId: string): Promise<Result
 
 /* ---------- calendar ---------- */
 
-export async function addEvent(clubId: string, e: { title: string; date: string; time: string; location: string; type: string; notes: string }): Promise<Result> {
+const color = (v: unknown) => (v === null || v === undefined || v === "" ? null : oneOf(v, COLOR_KEYS));
+
+export async function addEvent(clubId: string, e: { title: string; date: string; time: string; location: string; type: string; notes: string; color?: string | null }): Promise<Result> {
   return run(async () => {
     const { db } = await requireMember(clubId, ["admin", "advisor"]);
     await db.insert(schema.events).values({
       id: newId(), clubId, title: text(e?.title, 140, { required: true }), date: isoDate(e?.date), time: text(e?.time, 40), location: text(e?.location, 140),
-      type: oneOf(e?.type, ["meeting", "race", "event", "deadline"] as const), notes: text(e?.notes, 1000),
+      type: oneOf(e?.type, ["meeting", "race", "event", "deadline"] as const), notes: text(e?.notes, 1000), color: color(e?.color),
     });
     return snap(clubId);
   });
@@ -569,6 +572,39 @@ export async function removeResource(clubId: string, resourceId: string): Promis
   return run(async () => {
     const { db } = await requireMember(clubId, ["admin"]);
     await db.delete(schema.resources).where(and(eq(schema.resources.clubId, clubId), eq(schema.resources.id, id(resourceId))));
+    return snap(clubId);
+  });
+}
+
+/* ---------- colors ---------- */
+
+export async function setColor(clubId: string, kind: "event" | "task", id: string, c: string | null): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin", "advisor"]);
+    const table = oneOf(kind, ["event", "task"] as const) === "event" ? schema.events : schema.tasks;
+    await db.update(table).set({ color: color(c) }).where(and(eq(table.clubId, clubId), eq(table.id, String(id))));
+    return snap(clubId);
+  });
+}
+
+/* ---------- club chat ---------- */
+
+export async function sendMessage(clubId: string, body: string): Promise<Result> {
+  return run(async () => {
+    const { db, me } = await requireMember(clubId);
+    await db.insert(schema.messages).values({ id: newId(), clubId, memberId: me.id, author: me.name, body: text(body, 2000, { required: true }) });
+    return snap(clubId);
+  });
+}
+
+/** Your own messages; officers and advisors can remove any. */
+export async function deleteMessage(clubId: string, messageId: string): Promise<Result> {
+  return run(async () => {
+    const { db, me } = await requireMember(clubId);
+    const [m] = await db.select().from(schema.messages).where(and(eq(schema.messages.clubId, clubId), eq(schema.messages.id, id(messageId))));
+    if (!m) return snap(clubId);
+    if (m.memberId !== me.id && me.role === "member") throw new NotAllowed("You can only delete your own messages");
+    await db.delete(schema.messages).where(eq(schema.messages.id, m.id));
     return snap(clubId);
   });
 }

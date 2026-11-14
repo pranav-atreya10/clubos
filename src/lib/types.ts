@@ -43,6 +43,7 @@ export type ClubEvent = {
   location: string;
   type: EventType;
   notes: string;
+  color?: string | null;
 };
 
 export type WiredStatus =
@@ -82,6 +83,15 @@ export type Task = {
   due: string;
   status: TaskStatus;
   history: HistoryEntry[];
+  color?: string | null;
+};
+
+export type Message = {
+  id: string;
+  memberId: string | null;
+  author: string;
+  body: string;
+  at: string;
 };
 
 export type ResourceKind = "doc" | "slides" | "link" | "sheet";
@@ -128,6 +138,9 @@ export type ClubData = {
   announcements: Announcement[];
   tasks: Task[];
   resources: Resource[];
+  messages: Message[];
+  /** Subscribe link for Google/Apple/Outlook calendars. */
+  calendarUrl: string;
 };
 
 export type Snapshot = {

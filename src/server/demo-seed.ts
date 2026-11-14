@@ -98,7 +98,8 @@ async function createDemoClub(db: DB, st: ReturnType<typeof seedSettings>, clubI
       for (const h of m.ratingHistory)
         history.push({ id: newId(), clubId, entityType: "rating", entityId: mid(m.id), at: new Date(h.at), by: h.by, action: h.action, kind: h.kind ?? null, prev: h.prev ?? null });
 
-    await tx.insert(schema.events).values(seedEvents().map((e) => ({ ...e, id: mid(e.id), clubId })));
+    const eventColor: Record<string, string> = { race: "green", deadline: "orange", event: "purple" };
+    await tx.insert(schema.events).values(seedEvents().map((e) => ({ ...e, id: mid(e.id), clubId, color: eventColor[e.type] ?? null })));
 
     const weeks = seedWired(st.wiredTemplate);
     await tx.insert(schema.wiredWeeks).values(
@@ -119,6 +120,12 @@ async function createDemoClub(db: DB, st: ReturnType<typeof seedSettings>, clubI
         history.push({ id: newId(), clubId, entityType: "task", entityId: mid(t.id), at: new Date(h.at), by: h.by, action: h.action });
 
     await tx.insert(schema.resources).values(seedResources().map((r) => ({ ...r, id: mid(r.id), clubId })));
+    const ago = (min: number) => new Date(Date.now() - min * 60_000);
+    await tx.insert(schema.messages).values([
+      { id: newId(), clubId, memberId: mid("u6"), author: "Aisha Khan", body: "Do we need to bring anything Saturday besides the permission slip?", createdAt: ago(180) },
+      { id: newId(), clubId, memberId: mid("u2"), author: "Sam Rivera", body: "Water and closed-toe shoes! Bus leaves at 7:00 sharp.", createdAt: ago(170) },
+      { id: newId(), clubId, memberId: mid("u10"), author: "Nina Okafor", body: "Shirt designs are in Resources — vote Wednesday 🏁", createdAt: ago(45) },
+    ]);
     if (history.length) await tx.insert(schema.activity).values(history);
   });
 }

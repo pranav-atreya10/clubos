@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { AnnouncementItem, EventCard } from "@/components/app/bits";
+import { GettingStarted } from "@/components/app/getting-started";
 import SplitText from "@/components/reactbits/SplitText";
 import CountUp from "@/components/reactbits/CountUp";
 
@@ -129,6 +130,7 @@ export default function HomePage() {
       </header>
 
       <div className="space-y-12">
+        <GettingStarted />
         {role === "admin" && on.wired && <WiredCallout />}
 
         {role === "advisor" && on.wired && (
