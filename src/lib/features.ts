@@ -1,12 +1,13 @@
-import { CalendarDays, CheckSquare, ClipboardCheck, FolderOpen, Megaphone, Radio, Star, type LucideIcon } from "lucide-react";
+import { CalendarDays, CheckSquare, ClipboardCheck, FolderOpen, Megaphone, MessageCircle, Radio, Star, type LucideIcon } from "lucide-react";
 
-export type FeatureKey = "wired" | "announcements" | "calendar" | "tasks" | "resources" | "ratings" | "attendance";
+export type FeatureKey = "wired" | "announcements" | "chat" | "calendar" | "tasks" | "resources" | "ratings" | "attendance";
 
 export type Features = Record<FeatureKey, boolean>;
 
 export const FEATURES: { key: FeatureKey; label: string; body: string; icon: LucideIcon }[] = [
   { key: "wired", label: "AM Wired", body: "Plan morning announcements and get advisor approval.", icon: Radio },
   { key: "announcements", label: "Announcements", body: "A news feed for members.", icon: Megaphone },
+  { key: "chat", label: "Club chat", body: "One group conversation for questions.", icon: MessageCircle },
   { key: "calendar", label: "Calendar", body: "Meetings, races, and deadlines.", icon: CalendarDays },
   { key: "tasks", label: "Tasks", body: "Assign jobs with due dates.", icon: CheckSquare },
   { key: "resources", label: "Resources", body: "Shared docs, slides, and links.", icon: FolderOpen },
@@ -17,6 +18,7 @@ export const FEATURES: { key: FeatureKey; label: string; body: string; icon: Luc
 export const ALL_ON: Features = {
   wired: true,
   announcements: true,
+  chat: true,
   calendar: true,
   tasks: true,
   resources: true,
@@ -28,6 +30,7 @@ export const ALL_ON: Features = {
 export const featureForPath = (path: string): FeatureKey | null => {
   if (path.startsWith("/app/wired") || path.startsWith("/app/approvals")) return "wired";
   if (path.startsWith("/app/announcements")) return "announcements";
+  if (path.startsWith("/app/chat")) return "chat";
   if (path.startsWith("/app/calendar")) return "calendar";
   if (path.startsWith("/app/tasks")) return "tasks";
   if (path.startsWith("/app/resources")) return "resources";

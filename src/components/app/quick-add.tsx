@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { eventLabel } from "./bits";
+import { ColorPicker } from "@/components/ui/color-picker";
 
 export function AnnouncementDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const add = useClub((s) => s.addAnnouncement);
@@ -60,6 +61,7 @@ export function EventDialog({ open, onClose }: { open: boolean; onClose: () => v
     location: settings.meetingRoom,
     type: "meeting",
     notes: "",
+    color: null,
   });
   const [f, setF] = useState(blank);
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
@@ -102,6 +104,10 @@ export function EventDialog({ open, onClose }: { open: boolean; onClose: () => v
             <Label>Where</Label>
             <Input value={f.location} onChange={(e) => set({ location: e.target.value })} />
           </label>
+        </div>
+        <div>
+          <Label>Color</Label>
+          <ColorPicker value={f.color} onChange={(color) => set({ color })} />
         </div>
         <label className="block">
           <Label hint="Used in AM Wired auto-fill">Notes</Label>

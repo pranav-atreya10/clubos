@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Lock, Menu, X } from "lucide-react";
+import { ArrowUpRight, CircleHelp, Lock, Menu, X } from "lucide-react";
 import { useClub } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import { GROUPS, NAV, canSee } from "./nav";
@@ -133,6 +133,17 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           );
         })}
+        <a
+          href="/demovid"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 flex h-10 items-center gap-2.5 rounded-xl px-1.5 text-[14px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        >
+          <span className="inline-flex size-7 items-center justify-center rounded-lg border border-line bg-surface">
+            <CircleHelp className="size-3.5" />
+          </span>
+          Help & 43-second tour
+        </a>
       </nav>
 
       <div className={cn(panel, "space-y-3 p-3")}>

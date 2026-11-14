@@ -76,6 +76,30 @@ function WiredInner() {
         }
       />
 
+      <details data-reveal className="group mb-6 rounded-2xl border border-line bg-surface px-5 py-4 text-sm">
+        <summary className="cursor-pointer list-none font-medium select-none">
+          How this works <span className="text-faint group-open:hidden">— tap to open</span>
+        </summary>
+        <ol className="mt-3 grid gap-3 text-muted sm:grid-cols-3">
+          <li>
+            <span className="font-medium text-fg">1. Write it.</span> Pick a day on the left. Tap “Auto-fill from calendar” to draft it from
+            your meeting, or type your own. Nothing is sent yet.
+          </li>
+          <li>
+            <span className="font-medium text-fg">2. Advisor approves.</span> Tap “Send to {cap(s.settings.advisorName)}”. They see it in their
+            Approvals page and approve it, fix a word, or send it back with a note. No email back-and-forth.
+          </li>
+          <li>
+            <span className="font-medium text-fg">3. Send to AM Wired.</span> AM Wired is the school’s announcement inbox, so the approved
+            message goes there by email: one tap opens it ready to send. Club conversation happens in Chat.
+          </li>
+        </ol>
+        <p className="mt-3 rounded-xl bg-bg-subtle px-3 py-2 text-xs text-muted">
+          Meeting day changes every week? Add the meeting to the Calendar once it’s decided, then tap Auto-fill — the message uses that
+          day, time, and room.
+        </p>
+      </details>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr] [&>*]:min-w-0">
         <aside data-reveal className="lg:sticky lg:top-8 lg:self-start">
           <WeekList weeks={weeks} selected={w.id} onSelect={select} />

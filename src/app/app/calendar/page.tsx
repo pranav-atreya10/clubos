@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { ClubEvent, EventType } from "@/lib/types";
 import { addDays, daysFromToday, fmt, fmtLong, relativeDay, startOfWeek, toISODate } from "@/lib/dates";
@@ -10,6 +10,9 @@ import { Page, PageHeader, Card, Chips, SectionTitle } from "@/components/ui/pag
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EventDialog } from "@/components/app/quick-add";
+import { Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/field";
+import { colorHex } from "@/lib/colors";
 import { DateBlock, eventLabel, eventTone } from "@/components/app/bits";
 
 type F = "all" | EventType;
@@ -21,6 +24,51 @@ const dotColor: Record<EventType, string> = {
   deadline: "bg-warn",
 };
 
+/** Calendar subscription link for Google / Apple / Outlook. */
+function SubscribeDialog({ open, onClose, path }: { open: boolean; onClose: () => void; path: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
+  const webcal = url.replace(/^https?:/, "webcal:");
+  return (
+    <Modal open={open} onClose={onClose} title="Add to your calendar">
+      <p className="mb-4 text-sm text-muted">Club events show up in your own calendar app and update by themselves (usually within a few hours).</p>
+      <div className="mb-4 flex gap-2">
+        <Input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+        <Button
+          onClick={async () => {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+          }}
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        </Button>
+      </div>
+      <ul className="space-y-2 text-sm">
+        <li>
+          <span className="font-medium">Google Calendar:</span>{" "}
+          <a className="text-accent-text underline-offset-4 hover:underline" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`} target="_blank" rel="noreferrer">
+            open
+          </a>{" "}
+          (or Other calendars → ＋ → From URL, paste the link)
+        </li>
+        <li>
+          <span className="font-medium">Apple Calendar / iPhone:</span>{" "}
+          <a className="text-accent-text underline-offset-4 hover:underline" href={webcal}>
+            subscribe
+          </a>
+        </li>
+        <li>
+          <span className="font-medium">Outlook:</span> Add calendar → Subscribe from web → paste the link
+        </li>
+      </ul>
+      <p className="mt-4 rounded-xl bg-bg-subtle px-3 py-2 text-xs text-muted">
+        Schoology can’t subscribe to outside calendars, so this works with the calendar apps people already check. Keep the link
+        within the club — anyone with it can see event names and times.
+      </p>
+    </Modal>
+  );
+}
+
 export default function CalendarPage() {
   const events = useClub((s) => s.events);
   const role = useClub((s) => s.role);
@@ -31,6 +79,8 @@ export default function CalendarPage() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [adding, setAdding] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const calendarUrl = useClub((s) => s.calendarUrl);
   const today = daysFromToday(0);
 
   const filtered = useMemo(
@@ -53,11 +103,16 @@ export default function CalendarPage() {
         title="Calendar"
         subtitle="Meetings, races, and deadlines in one place."
         actions={
-          (role === "admin" || role === "advisor") && (
-            <Button variant="primary" onClick={() => setAdding(true)}>
-              <Plus className="size-4" /> New event
+          <>
+            <Button onClick={() => setSubscribing(true)}>
+              <CalendarPlus className="size-4" /> Add to my calendar
             </Button>
-          )
+            {(role === "admin" || role === "advisor") && (
+              <Button variant="primary" onClick={() => setAdding(true)}>
+                <Plus className="size-4" /> New event
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -113,7 +168,7 @@ export default function CalendarPage() {
                   <div className="mt-1 space-y-1">
                     {evs.slice(0, 2).map((e) => (
                       <div key={e.id} title={e.title} className="flex items-center gap-1">
-                        <span className={cn("size-1.5 shrink-0 rounded-full", dotColor[e.type])} />
+                        <span className={cn("size-1.5 shrink-0 rounded-full", !e.color && dotColor[e.type])} style={e.color ? { background: colorHex(e.color)! } : undefined} />
                         <span className="hidden truncate text-[11px] sm:inline">{e.title}</span>
                       </div>
                     ))}
@@ -128,7 +183,12 @@ export default function CalendarPage() {
           <SectionTitle>Up next</SectionTitle>
           <div className="space-y-2">
             {upcoming.map((e) => (
-              <div data-reveal key={e.id} className="group flex gap-4 rounded-2xl border border-line bg-surface p-4">
+              <div
+                data-reveal
+                key={e.id}
+                className="group flex gap-4 rounded-2xl border border-line bg-surface p-4"
+                style={e.color ? { borderLeft: `4px solid ${colorHex(e.color)}` } : undefined}
+              >
                 <DateBlock date={e.date} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -158,6 +218,7 @@ export default function CalendarPage() {
       </div>
 
       <EventDialog open={adding} onClose={() => setAdding(false)} />
+      <SubscribeDialog open={subscribing} onClose={() => setSubscribing(false)} path={calendarUrl} />
     </Page>
   );
 }

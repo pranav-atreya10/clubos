@@ -63,6 +63,8 @@ export const clubs = pgTable("clubs", {
   wiredTemplate: text("wired_template").notNull(),
   /** How many days one AM Wired message covers (1 = daily, school days only). */
   wiredDays: integer("wired_days").notNull().default(1),
+  /** Secret part of the calendar subscription link (Google/Apple/Outlook). */
+  calendarToken: text("calendar_token"),
   features: jsonb("features").$type<Features>().notNull(),
   createdAt: now(),
 }, (t) => [uniqueIndex("clubs_invite_code").on(t.inviteCode), uniqueIndex("clubs_advisor_invite_code").on(t.advisorInviteCode)]);
@@ -101,6 +103,8 @@ export const events = pgTable("events", {
   location: text("location").notNull().default(""),
   type: text("type", { enum: ["meeting", "race", "event", "deadline"] }).notNull(),
   notes: text("notes").notNull().default(""),
+  /** Color key (see lib/colors.ts), or null for the default by type. */
+  color: text("color"),
   createdAt: now(),
 }, (t) => [index("events_club").on(t.clubId)]);
 
@@ -135,6 +139,7 @@ export const tasks = pgTable("tasks", {
   assigneeId: text("assignee_id").references(() => members.id, { onDelete: "set null" }),
   due: date("due", { mode: "string" }).notNull(),
   status: text("status", { enum: ["todo", "doing", "done"] }).notNull().default("todo"),
+  color: text("color"),
   createdAt: now(),
 }, (t) => [index("tasks_club").on(t.clubId)]);
 
@@ -162,3 +167,13 @@ export const activity = pgTable("activity", {
   kind: text("kind"),
   prev: integer("prev"),
 }, (t) => [index("activity_entity").on(t.clubId, t.entityType, t.entityId)]);
+
+/** Club chat: one shared conversation per club. */
+export const messages = pgTable("messages", {
+  id: text("id").primaryKey(),
+  clubId: text("club_id").notNull().references(() => clubs.id, { onDelete: "cascade" }),
+  memberId: text("member_id").references(() => members.id, { onDelete: "set null" }),
+  author: text("author").notNull(),
+  body: text("body").notNull(),
+  createdAt: now(),
+}, (t) => [index("messages_club").on(t.clubId, t.createdAt)]);
