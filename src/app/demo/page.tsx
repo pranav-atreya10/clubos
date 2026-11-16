@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { demoEnabled } from "@/lib/demo";
 import { Play } from "lucide-react";
 import { Logo } from "@/components/app/logo";
 import { ThemeToggle } from "@/components/app/theme-toggle";
@@ -11,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function DemoPage() {
+  if (!demoEnabled) redirect("/demovid");
   return (
     <div className="min-h-screen bg-bg">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 pt-6 sm:px-8">

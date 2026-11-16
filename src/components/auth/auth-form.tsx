@@ -10,6 +10,7 @@ import { passkeyLoginOptions, passkeyLoginVerify, secondStepInfo, verifySecondSt
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/field";
 import { Logo } from "@/components/app/logo";
+import { demoEnabled } from "@/lib/demo";
 
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const router = useRouter();
@@ -178,8 +179,8 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           {up ? "Sign in" : "Create an account"}
         </Link>
       </p>
-      <Link href="/demo" className="mt-2 text-sm text-faint hover:text-fg">
-        Just looking? Try the demo
+      <Link href={demoEnabled ? "/demo" : "/demovid"} className="mt-2 text-sm text-faint hover:text-fg">
+        {demoEnabled ? "Just looking? Try the demo" : "Just looking? Watch the 43-second video"}
       </Link>
     </div>
   );

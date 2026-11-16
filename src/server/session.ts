@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { getDb, schema } from "@/db";
 import { sessionUser } from "./auth";
+import { demoEnabled } from "@/lib/demo";
 
 /** Set only while someone is trying the demo (from /demo). */
 export const DEMO_USER_COOKIE = "clubos-demo-user";
@@ -18,7 +19,7 @@ export type Viewer = { userId: string; name: string; email: string | null; demo:
 /** Who is making this request: a demo visitor, a signed-in account, or nobody (null). */
 export async function getViewer(): Promise<Viewer | null> {
   const jar = await cookies();
-  const demo = DEMO_USERS.find((d) => d.id === jar.get(DEMO_USER_COOKIE)?.value);
+  const demo = demoEnabled ? DEMO_USERS.find((d) => d.id === jar.get(DEMO_USER_COOKIE)?.value) : undefined;
   if (demo) {
     await ensureDemoUsers();
     return { userId: demo.id, name: demo.name, email: demo.email, demo: true };

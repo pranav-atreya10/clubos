@@ -20,6 +20,7 @@ import {
   Star,
 } from "lucide-react";
 import { Logo } from "@/components/app/logo";
+import { demoEnabled } from "@/lib/demo";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import SplitText from "@/components/reactbits/SplitText";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
@@ -186,8 +187,8 @@ export function Landing() {
           your next leaders.
         </p>
         <div className="hero-fade mt-9 flex flex-wrap justify-center gap-3">
-          <Link href="/demo" className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg transition-colors hover:bg-accent-hover">
-            Try the demo <ArrowRight className="size-4" />
+          <Link href={demoEnabled ? "/demo" : "/sign-up"} className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg transition-colors hover:bg-accent-hover">
+            {demoEnabled ? "Try the demo" : "Get started"} <ArrowRight className="size-4" />
           </Link>
           <Link href="/demovid" className="inline-flex h-12 items-center gap-2 rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
             <Play className="size-4 fill-current" /> Watch the video
@@ -300,8 +301,8 @@ export function Landing() {
             <p className="mt-2 text-sm text-muted">© {new Date().getFullYear()} ClubOS · Built by Pranav Atreya</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/demo" className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
-              Try the demo
+            <Link href={demoEnabled ? "/demo" : "/demovid"} className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
+              {demoEnabled ? "Try the demo" : "Watch the video"}
             </Link>
             <Link href="/sign-up" className="inline-flex h-12 items-center gap-2 rounded-full bg-fg px-6 font-medium text-bg transition-opacity hover:opacity-85">
               Get started <ArrowRight className="size-4" />

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Logo } from "@/components/app/logo";
+import { demoEnabled } from "@/lib/demo";
 
 export const metadata: Metadata = {
   title: "Demo video",
@@ -38,9 +39,11 @@ export default function DemoVideoPage() {
         </div>
 
         <div className="mt-10 flex flex-wrap gap-3">
-          <Link href="/demo" className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg transition-colors hover:bg-accent-hover">
-            Try the demo <ArrowRight className="size-4" />
-          </Link>
+          {demoEnabled && (
+            <Link href="/demo" className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg transition-colors hover:bg-accent-hover">
+              Try the demo <ArrowRight className="size-4" />
+            </Link>
+          )}
           <Link href="/sign-up" className="inline-flex h-12 items-center rounded-full border border-line bg-surface px-6 font-medium transition-colors hover:border-line-strong">
             Get started
           </Link>
