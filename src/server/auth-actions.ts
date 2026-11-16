@@ -6,6 +6,7 @@ import { getDb, schema } from "@/db";
 import { burnTime, endSession, hasSecondFactor, hashPassword, startSession, verifyPassword } from "./auth";
 import { CLUB_COOKIE, DEMO_USERS, DEMO_USER_COOKIE } from "./session";
 import { newId } from "./ids";
+import { demoEnabled } from "@/lib/demo";
 
 export type AuthResult = { ok: true; mfa?: boolean } | { ok: false; error: string };
 
@@ -109,6 +110,7 @@ export async function signOut(): Promise<AuthResult> {
 
 /** Start trying the demo as one of the sample people. Doesn't touch any real account. */
 export async function enterDemo(userId: string): Promise<AuthResult> {
+  if (!demoEnabled) return { ok: false, error: "The demo is turned off." };
   const pick = DEMO_USERS.find((d) => d.id === userId) ?? DEMO_USERS[0];
   const jar = await cookies();
   jar.set(DEMO_USER_COOKIE, pick.id, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 });
