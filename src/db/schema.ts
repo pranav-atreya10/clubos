@@ -186,3 +186,16 @@ export const pollVotes = pgTable("poll_votes", {
   memberId: text("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
   choice: integer("choice").notNull(),
 }, (t) => [uniqueIndex("poll_votes_one").on(t.messageId, t.memberId)]);
+
+/** Feedback from anyone using ClubOS, read by the app owner (OWNER_EMAILS) on /app/feedback. */
+export const feedback = pgTable("feedback", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  email: text("email"),
+  club: text("club"),
+  page: text("page"),
+  message: text("message").notNull(),
+  done: boolean("done").notNull().default(false),
+  createdAt: now(),
+}, (t) => [index("feedback_created").on(t.createdAt)]);
