@@ -13,6 +13,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { AccountCard, RoleSwitch } from "./identity";
 import { ClubSwitcher } from "./club-switcher";
 import { QuickAdd } from "./quick-add";
+import { FeedbackLinks } from "./feedback-button";
 import { SecurityPanel } from "@/components/security/security-panel";
 import { Onboarding } from "./onboarding";
 
@@ -144,6 +145,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </span>
           Help & 43-second tour
         </a>
+        <FeedbackLinks />
       </nav>
 
       <div className={cn(panel, "space-y-3 p-3")}>
