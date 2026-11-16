@@ -36,6 +36,13 @@
       "when": 1794698826134,
       "tag": "0004_colors_chat_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794703597340,
+      "tag": "0005_polls",
+      "breakpoints": true
     }
   ]
 }
