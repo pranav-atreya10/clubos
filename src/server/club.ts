@@ -96,6 +96,8 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
     .where(eq(schema.messages.clubId, club.id))
     .orderBy(desc(schema.messages.createdAt))
     .limit(150);
+  const pollIds = chat.filter((m) => m.poll).map((m) => m.id);
+  const votes = pollIds.length ? await db.select().from(schema.pollVotes).where(inArray(schema.pollVotes.messageId, pollIds)) : [];
   const [members, events, wired, announcements, tasks, resources, activity] = await Promise.all([
     db.select().from(schema.members).where(eq(schema.members.clubId, club.id)).orderBy(asc(schema.members.name)),
     db.select().from(schema.events).where(eq(schema.events.clubId, club.id)).orderBy(asc(schema.events.date)),
@@ -171,7 +173,21 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
     })),
     announcements: announcements.map((a) => ({ id: a.id, title: a.title, body: a.body, date: a.date, author: a.author, pinned: a.pinned })),
     tasks: tasks.map((t) => ({ id: t.id, title: t.title, assigneeId: t.assigneeId ?? "", due: t.due, status: t.status, color: t.color, history: hist.get(t.id) ?? [] })),
-    messages: chat.reverse().map((m) => ({ id: m.id, memberId: m.memberId, author: m.author, body: m.body, at: m.createdAt.toISOString() })),
+    messages: chat.reverse().map((m) => ({
+      id: m.id,
+      memberId: m.memberId,
+      author: m.author,
+      body: m.body,
+      at: m.createdAt.toISOString(),
+      poll: m.poll
+        ? {
+            options: m.poll.options,
+            closed: m.poll.closed,
+            counts: m.poll.options.map((_, i) => votes.filter((v) => v.messageId === m.id && v.choice === i).length),
+            myVote: votes.find((v) => v.messageId === m.id && v.memberId === me.id)?.choice ?? null,
+          }
+        : null,
+    })),
     calendarUrl: `/api/calendar/${club.calendarToken}.ics`,
     resources: resources
       .filter((r) => leader || r.category !== "Officers")

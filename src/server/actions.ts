@@ -608,3 +608,45 @@ export async function deleteMessage(clubId: string, messageId: string): Promise<
     return snap(clubId);
   });
 }
+
+/* ---------- polls (in chat) ---------- */
+
+export async function createPoll(clubId: string, question: string, options: string[]): Promise<Result> {
+  return run(async () => {
+    const { db, me } = await requireMember(clubId);
+    const opts = (Array.isArray(options) ? options : []).map((o) => text(o, 80)).filter(Boolean);
+    if (opts.length < 2 || opts.length > 6) throw new Invalid("Give 2 to 6 options");
+    await db.insert(schema.messages).values({
+      id: newId(), clubId, memberId: me.id, author: me.name, body: text(question, 200, { required: true }), poll: { options: opts, closed: false },
+    });
+    return snap(clubId);
+  });
+}
+
+export async function votePoll(clubId: string, messageId: string, choice: number): Promise<Result> {
+  return run(async () => {
+    const { db, me } = await requireMember(clubId);
+    const [m] = await db.select().from(schema.messages).where(and(eq(schema.messages.clubId, clubId), eq(schema.messages.id, id(messageId))));
+    if (!m?.poll) throw new Invalid("That poll no longer exists");
+    if (m.poll.closed) throw new Invalid("This poll is closed");
+    const c = Number(choice);
+    if (!Number.isInteger(c) || c < 0 || c >= m.poll.options.length) throw new Invalid("Invalid choice");
+    await db
+      .insert(schema.pollVotes)
+      .values({ messageId: m.id, memberId: me.id, choice: c })
+      .onConflictDoUpdate({ target: [schema.pollVotes.messageId, schema.pollVotes.memberId], set: { choice: c } });
+    return snap(clubId);
+  });
+}
+
+/** The person who made the poll, or a leader, can close it. */
+export async function closePoll(clubId: string, messageId: string): Promise<Result> {
+  return run(async () => {
+    const { db, me } = await requireMember(clubId);
+    const [m] = await db.select().from(schema.messages).where(and(eq(schema.messages.clubId, clubId), eq(schema.messages.id, id(messageId))));
+    if (!m?.poll) throw new Invalid("That poll no longer exists");
+    if (m.memberId !== me.id && me.role === "member") throw new NotAllowed("Only the person who made it or a leader can close it");
+    await db.update(schema.messages).set({ poll: { ...m.poll, closed: true } }).where(eq(schema.messages.id, m.id));
+    return snap(clubId);
+  });
+}

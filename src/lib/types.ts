@@ -92,6 +92,8 @@ export type Message = {
   author: string;
   body: string;
   at: string;
+  /** Present when this message is a poll (body is the question). */
+  poll?: { options: string[]; closed: boolean; counts: number[]; myVote: number | null } | null;
 };
 
 export type ResourceKind = "doc" | "slides" | "link" | "sheet";

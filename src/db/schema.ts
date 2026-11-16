@@ -175,5 +175,14 @@ export const messages = pgTable("messages", {
   memberId: text("member_id").references(() => members.id, { onDelete: "set null" }),
   author: text("author").notNull(),
   body: text("body").notNull(),
+  /** Set when this message is a poll: body is the question. */
+  poll: jsonb("poll").$type<{ options: string[]; closed: boolean }>(),
   createdAt: now(),
 }, (t) => [index("messages_club").on(t.clubId, t.createdAt)]);
+
+/** One vote per person per poll (changing your vote replaces it). */
+export const pollVotes = pgTable("poll_votes", {
+  messageId: text("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull().references(() => members.id, { onDelete: "cascade" }),
+  choice: integer("choice").notNull(),
+}, (t) => [uniqueIndex("poll_votes_one").on(t.messageId, t.memberId)]);

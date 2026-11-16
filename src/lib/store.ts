@@ -89,6 +89,9 @@ type State = Data & {
   setColor: (kind: "event" | "task", id: string, color: string | null) => void;
   sendMessage: (body: string) => void;
   deleteMessage: (id: string) => void;
+  createPoll: (question: string, options: string[]) => void;
+  votePoll: (id: string, choice: number) => void;
+  closePoll: (id: string) => void;
   setTaskStatus: (id: string, s: TaskStatus) => void;
   removeTask: (id: string) => void;
 
@@ -351,6 +354,21 @@ export const useClub = create<State>()((set, get) => {
         (s) => ({ messages: [...s.messages, { id: `tmp-${Date.now()}`, memberId: s.meId, author: s.userName, body, at: new Date().toISOString() }] }),
         (c) => api.sendMessage(c, body),
       ),
+    createPoll: (question, options) => void save(null, (c) => api.createPoll(c, question, options)),
+    votePoll: (id, choice) =>
+      void save(
+        (s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id !== id || !m.poll) return m;
+            const counts = [...m.poll.counts];
+            if (m.poll.myVote !== null) counts[m.poll.myVote]--;
+            counts[choice]++;
+            return { ...m, poll: { ...m.poll, counts, myVote: choice } };
+          }),
+        }),
+        (c) => api.votePoll(c, id, choice),
+      ),
+    closePoll: (id) => void save(null, (c) => api.closePoll(c, id)),
     deleteMessage: (id) => void save((s) => ({ messages: s.messages.filter((m) => m.id !== id) }), (c) => api.deleteMessage(c, id)),
 
     addResource: (r) => void save(null, (c) => api.addResource(c, r)),
