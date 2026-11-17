@@ -28,7 +28,7 @@ export const NAV: NavItem[] = [
   { href: "/app/tasks", group: "Club", label: "Tasks", icon: CheckSquare, roles: ["admin", "advisor", "member"] },
   { href: "/app/members", group: "Leaders", label: "Members", icon: Users, roles: ["admin", "advisor"] },
   { href: "/app/resources", group: "Club", label: "Resources", icon: FolderOpen, roles: ["admin", "advisor", "member"] },
-  { href: "/app/agenda", group: "Leaders", label: "Agenda", icon: ListChecks, roles: ["admin"] },
+  { href: "/app/agenda", group: "Leaders", label: "Agenda", icon: ListChecks, roles: ["admin", "advisor"] },
   { href: "/app/settings", group: "Leaders", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 

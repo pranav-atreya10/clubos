@@ -57,6 +57,13 @@
       "when": 1794920085344,
       "tag": "0007_resets_agenda",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795400000000,
+      "tag": "0008_meeting_agendas",
+      "breakpoints": true
     }
   ]
 }

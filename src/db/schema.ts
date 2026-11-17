@@ -108,6 +108,8 @@ export const events = pgTable("events", {
   notes: text("notes").notNull().default(""),
   /** Color key (see lib/colors.ts), or null for the default by type. */
   color: text("color"),
+  /** Leaders only: this meeting's agenda (null = none yet). */
+  agenda: jsonb("agenda").$type<{ id: string; text: string; minutes: number; done: boolean }[]>(),
   createdAt: now(),
 }, (t) => [index("events_club").on(t.clubId)]);
 
