@@ -650,3 +650,78 @@ export async function closePoll(clubId: string, messageId: string): Promise<Resu
     return snap(clubId);
   });
 }
+
+/* ---------- editing ---------- */
+
+export async function updateEvent(clubId: string, eventId: string, e: { title: string; date: string; time: string; location: string; type: string; notes: string; color?: string | null }): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin", "advisor"]);
+    await db
+      .update(schema.events)
+      .set({
+        title: text(e?.title, 140, { required: true }), date: isoDate(e?.date), time: text(e?.time, 40), location: text(e?.location, 140),
+        type: oneOf(e?.type, ["meeting", "race", "event", "deadline"] as const), notes: text(e?.notes, 1000), color: color(e?.color),
+      })
+      .where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId))));
+    return snap(clubId);
+  });
+}
+
+export async function updateTask(clubId: string, taskId: string, t: { title: string; assigneeId: string; due: string }): Promise<Result> {
+  return run(async () => {
+    const { db, viewer } = await requireMember(clubId, ["admin"]);
+    const [cur] = await db.select().from(schema.tasks).where(and(eq(schema.tasks.clubId, clubId), eq(schema.tasks.id, id(taskId))));
+    if (!cur) throw new Invalid("That task no longer exists");
+    const who = await memberIn(db, clubId, t?.assigneeId);
+    const next = { title: text(t?.title, 200, { required: true }), assigneeId: who.id, due: isoDate(t?.due) };
+    const changes = [
+      next.title !== cur.title && `renamed to “${next.title}”`,
+      next.assigneeId !== cur.assigneeId && `reassigned to ${who.name}`,
+      next.due !== cur.due && `due date changed to ${next.due}`,
+    ].filter(Boolean);
+    if (changes.length) {
+      await db.update(schema.tasks).set(next).where(eq(schema.tasks.id, cur.id));
+      await log(db, clubId, "task", cur.id, viewer.name, `Edited: ${changes.join(", ")}`);
+    }
+    return snap(clubId);
+  });
+}
+
+export async function updateAnnouncement(clubId: string, announcementId: string, a: { title: string; body: string }): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin", "advisor"]);
+    await db
+      .update(schema.announcements)
+      .set({ title: text(a?.title, 140, { required: true }), body: text(a?.body, 4000) })
+      .where(and(eq(schema.announcements.clubId, clubId), eq(schema.announcements.id, id(announcementId))));
+    return snap(clubId);
+  });
+}
+
+export async function updateResource(clubId: string, resourceId: string, r: { title: string; url: string; kind: string; category: string }): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin"]);
+    await db
+      .update(schema.resources)
+      .set({ title: text(r?.title, 140, { required: true }), url: url(r?.url), kind: oneOf(r?.kind, ["doc", "slides", "link", "sheet"] as const), category: text(r?.category, 60) || "Club info" })
+      .where(and(eq(schema.resources.clubId, clubId), eq(schema.resources.id, id(resourceId))));
+    return snap(clubId);
+  });
+}
+
+/* ---------- meeting agenda (officers only) ---------- */
+
+export async function saveAgenda(clubId: string, title: string, items: { id: string; text: string; minutes: number; done: boolean }[]): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin"]);
+    if (!Array.isArray(items) || items.length > 40) throw new Invalid("Up to 40 agenda items");
+    const clean = items.map((i) => ({
+      id: id(i?.id),
+      text: text(i?.text, 140),
+      minutes: Math.max(0, Math.min(240, Math.round(Number(i?.minutes) || 0))),
+      done: Boolean(i?.done),
+    }));
+    await db.update(schema.clubs).set({ agenda: clean, agendaTitle: text(title, 80) || "Next meeting" }).where(eq(schema.clubs.id, clubId));
+    return snap(clubId);
+  });
+}

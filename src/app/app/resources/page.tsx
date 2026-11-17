@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUpRight, FileText, Link2, Plus, Presentation, Search, Sheet, Trash2 } from "lucide-react";
+import { ArrowUpRight, FileText, Link2, Plus, Presentation, Search, Sheet, Trash2, Pencil } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { ResourceKind } from "@/lib/types";
 import { fmtShort } from "@/lib/dates";
@@ -21,6 +21,7 @@ export default function ResourcesPage() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ title: "", url: "", kind: "doc" as ResourceKind, category: "Club info" });
+  const [editId, setEditId] = useState<string | null>(null);
 
   const visible = s.resources.filter(
     (r) =>
@@ -36,7 +37,14 @@ export default function ResourcesPage() {
         subtitle="Docs, slides, and links — one place instead of ten group chats."
         actions={
           isAdmin && (
-            <Button variant="primary" onClick={() => setOpen(true)}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditId(null);
+                setF({ title: "", url: "", kind: "doc", category: "Club info" });
+                setOpen(true);
+              }}
+            >
               <Plus className="size-4" /> Add
             </Button>
           )
@@ -85,9 +93,22 @@ export default function ResourcesPage() {
                     </p>
                   </div>
                   {isAdmin && (
+                    <div className="flex">
+                    <button
+                      aria-label={`Edit ${r.title}`}
+                      onClick={() => {
+                        setEditId(r.id);
+                        setF({ title: r.title, url: r.url, kind: r.kind, category: r.category });
+                        setOpen(true);
+                      }}
+                      className="rounded-full p-1.5 text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-fg focus:opacity-100"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
                     <button aria-label={`Delete ${r.title}`} onClick={() => s.removeResource(r.id)} className="rounded-full p-1.5 text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger focus:opacity-100">
                       <Trash2 className="size-4" />
                     </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -96,13 +117,22 @@ export default function ResourcesPage() {
         </div>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Add resource">
+      <Modal
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          setEditId(null);
+        }}
+        title={editId ? "Edit resource" : "Add resource"}
+      >
         <form
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (!f.title.trim() || !f.url.trim()) return;
-            s.addResource({ ...f, title: f.title.trim(), url: f.url.trim() });
+            if (editId) s.updateResource(editId, { ...f, title: f.title.trim(), url: f.url.trim() });
+            else s.addResource({ ...f, title: f.title.trim(), url: f.url.trim() });
+            setEditId(null);
             setF({ ...f, title: "", url: "" });
             setOpen(false);
           }}
@@ -131,7 +161,7 @@ export default function ResourcesPage() {
             </label>
           </div>
           <Button type="submit" variant="primary" className="w-full" disabled={!f.title.trim() || !f.url.trim()}>
-            Add resource
+            {editId ? "Save changes" : "Add resource"}
           </Button>
         </form>
       </Modal>

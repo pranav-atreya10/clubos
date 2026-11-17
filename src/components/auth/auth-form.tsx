@@ -152,6 +152,11 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               </button>
             </div>
           </label>
+          {!up && (
+            <Link href="/forgot-password" className="-mt-2 block text-right text-xs text-muted hover:text-fg">
+              Forgot password?
+            </Link>
+          )}
           {error && (
             <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
               {error}

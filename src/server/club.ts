@@ -189,6 +189,7 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
         : null,
     })),
     calendarUrl: `/api/calendar/${club.calendarToken}.ics`,
+    agenda: role === "admin" ? { title: club.agendaTitle, items: club.agenda } : null,
     resources: resources
       .filter((r) => leader || r.category !== "Officers")
       .map((r) => ({ id: r.id, title: r.title, kind: r.kind, url: r.url, category: r.category, addedBy: r.addedBy, date: r.date })),

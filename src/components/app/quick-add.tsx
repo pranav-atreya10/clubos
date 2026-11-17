@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CalendarPlus, Megaphone, Plus } from "lucide-react";
 import { useClub } from "@/lib/store";
-import type { ClubEvent, EventType } from "@/lib/types";
+import type { Announcement, ClubEvent, EventType } from "@/lib/types";
 import { daysFromToday } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -12,19 +12,22 @@ import { Modal } from "@/components/ui/modal";
 import { eventLabel } from "./bits";
 import { ColorPicker } from "@/components/ui/color-picker";
 
-export function AnnouncementDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AnnouncementDialog({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Announcement }) {
   const add = useClub((s) => s.addAnnouncement);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const update = useClub((s) => s.updateAnnouncement);
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [body, setBody] = useState(initial?.body ?? "");
   const [pinned, setPinned] = useState(false);
   return (
-    <Modal open={open} onClose={onClose} title="New announcement">
+    <Modal open={open} onClose={onClose} title={initial ? "Edit announcement" : "New announcement"}>
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (!title.trim()) return;
-          add({ title: title.trim(), body: body.trim(), pinned });
+          if (initial) update(initial.id, { title: title.trim(), body: body.trim() });
+          else add({ title: title.trim(), body: body.trim(), pinned });
+          if (initial) return onClose();
           setTitle("");
           setBody("");
           setPinned(false);
@@ -39,20 +42,33 @@ export function AnnouncementDialog({ open, onClose }: { open: boolean; onClose: 
           <Label>Details</Label>
           <Textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
         </label>
-        <label className="flex items-center gap-2 text-sm">
+        {!initial && <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} className="size-4 accent-[var(--accent)]" />
           Pin to the top
-        </label>
+        </label>}
         <Button type="submit" variant="primary" className="w-full" disabled={!title.trim()}>
-          Post to members
+          {initial ? "Save changes" : "Post to members"}
         </Button>
       </form>
     </Modal>
   );
 }
 
-export function EventDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function EventDialog({
+  open,
+  onClose,
+  initial,
+  prefill,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Editing an existing event. */
+  initial?: ClubEvent;
+  /** Starting values for a new event (e.g. from a poll). */
+  prefill?: Partial<Omit<ClubEvent, "id">>;
+}) {
   const addEvent = useClub((s) => s.addEvent);
+  const updateEvent = useClub((s) => s.updateEvent);
   const settings = useClub((s) => s.settings);
   const blank = (): Omit<ClubEvent, "id"> => ({
     title: "",
@@ -63,15 +79,19 @@ export function EventDialog({ open, onClose }: { open: boolean; onClose: () => v
     notes: "",
     color: null,
   });
-  const [f, setF] = useState(blank);
+  const [f, setF] = useState<Omit<ClubEvent, "id">>(() => (initial ? { ...initial } : { ...blank(), ...prefill }));
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   return (
-    <Modal open={open} onClose={onClose} title="New event">
+    <Modal open={open} onClose={onClose} title={initial ? "Edit event" : "New event"}>
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (!f.title.trim()) return;
+          if (initial) {
+            updateEvent(initial.id, { ...f, title: f.title.trim() });
+            return onClose();
+          }
           addEvent({ ...f, title: f.title.trim() });
           setF(blank());
           onClose();
@@ -114,7 +134,7 @@ export function EventDialog({ open, onClose }: { open: boolean; onClose: () => v
           <Textarea rows={2} value={f.notes} onChange={(e) => set({ notes: e.target.value })} />
         </label>
         <Button type="submit" variant="primary" className="w-full" disabled={!f.title.trim()}>
-          Add to calendar
+          {initial ? "Save changes" : "Add to calendar"}
         </Button>
       </form>
     </Modal>

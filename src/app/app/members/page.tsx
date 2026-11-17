@@ -12,6 +12,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { RatingBar } from "@/components/app/rating";
+import { makeResetLink } from "@/server/reset";
 import { History } from "@/components/wired/history";
 
 type Filter = "all" | "officers" | "candidates" | "unrated";
@@ -58,6 +59,7 @@ function MemberModal({
             <Input disabled={!canEdit} value={live.title} onChange={(e) => s.updateMember(live.id, { title: e.target.value })} />
           </label>
         </div>
+        {live.hasAccount && live.role === "member" && (s.role === "admin" || s.role === "advisor") && <ResetLinkButton memberId={live.id} />}
         {!live.hasAccount && (
           <p className="rounded-xl bg-bg-subtle px-3 py-2 text-xs text-muted">
             {live.name.split(" ")[0]} hasn’t signed in yet. When they join with the invite code using {live.email || "the same email"}, this profile becomes theirs.
@@ -163,6 +165,39 @@ function AddMember({ open, onClose }: { open: boolean; onClose: () => void }) {
         </Button>
       </form>
     </Modal>
+  );
+}
+
+/** For a member who forgot their password: a one-time link (24h) to send them. */
+function ResetLinkButton({ memberId }: { memberId: string }) {
+  const clubId = useClub((s) => s.clubId);
+  const [link, setLink] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  if (link)
+    return (
+      <div className="rounded-xl bg-bg-subtle p-3 text-xs">
+        <p className="mb-2 text-muted">Send this to them (works once, for 24 hours):</p>
+        <div className="flex gap-2">
+          <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="h-8 font-mono text-[11px]" />
+          <Button size="sm" onClick={async () => { await navigator.clipboard.writeText(link); setCopied(true); }}>{copied ? "Copied" : "Copy"}</Button>
+        </div>
+      </div>
+    );
+  return (
+    <div>
+      <button
+        onClick={async () => {
+          const r = await makeResetLink(clubId ?? "", memberId).catch(() => null);
+          if (r?.ok) setLink(r.link);
+          else setErr(r && !r.ok ? r.error : "Couldn't make a link.");
+        }}
+        className="text-xs font-medium text-accent-text hover:underline underline-offset-4"
+      >
+        Forgot their password? Make a reset link
+      </button>
+      {err && <p className="mt-1 text-xs text-danger">{err}</p>}
+    </div>
   );
 }
 

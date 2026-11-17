@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { ClubEvent, EventType } from "@/lib/types";
 import { addDays, daysFromToday, fmt, fmtLong, relativeDay, startOfWeek, toISODate } from "@/lib/dates";
@@ -80,6 +80,7 @@ export default function CalendarPage() {
   });
   const [adding, setAdding] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+  const [editing, setEditing] = useState<ClubEvent | null>(null);
   const calendarUrl = useClub((s) => s.calendarUrl);
   const today = daysFromToday(0);
 
@@ -201,13 +202,22 @@ export default function CalendarPage() {
                   {e.notes && <p className="mt-1 text-sm text-muted">{e.notes}</p>}
                 </div>
                 {(role === "admin" || role === "advisor") && (
+                  <div className="flex self-start">
+                  <button
+                    aria-label={`Edit ${e.title}`}
+                    onClick={() => setEditing(e)}
+                    className="rounded-full p-1.5 text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-fg focus:opacity-100"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
                   <button
                     aria-label={`Delete ${e.title} on ${fmtLong(e.date)}`}
                     onClick={() => removeEvent(e.id)}
-                    className="self-start rounded-full p-1.5 text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger focus:opacity-100"
+                    className="rounded-full p-1.5 text-faint opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger focus:opacity-100"
                   >
                     <Trash2 className="size-4" />
                   </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -218,6 +228,7 @@ export default function CalendarPage() {
       </div>
 
       <EventDialog open={adding} onClose={() => setAdding(false)} />
+      {editing && <EventDialog key={editing.id} open initial={editing} onClose={() => setEditing(null)} />}
       <SubscribeDialog open={subscribing} onClose={() => setSubscribing(false)} path={calendarUrl} />
     </Page>
   );
