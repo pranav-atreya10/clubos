@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Pin, Plus, Radio, Trash2 } from "lucide-react";
+import { Pin, Plus, Radio, Trash2, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useClub } from "@/lib/store";
+import type { Announcement } from "@/lib/types";
 import { Page, PageHeader, Card } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { AnnouncementDialog } from "@/components/app/quick-add";
@@ -14,6 +15,7 @@ export default function AnnouncementsPage() {
   const s = useClub();
   const isAdmin = s.role === "admin";
   const canPost = isAdmin || s.role === "advisor";
+  const [editing, setEditing] = useState<Announcement | null>(null);
   const [open, setOpen] = useState(false);
   const list = [...s.announcements].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
 
@@ -57,6 +59,9 @@ export default function AnnouncementsPage() {
                   >
                     <Pin className="size-4" />
                   </button>
+                  <button aria-label="Edit" onClick={() => setEditing(a)} className="rounded-full p-1.5 text-faint hover:bg-surface-2 hover:text-fg">
+                    <Pencil className="size-4" />
+                  </button>
                   <button aria-label="Delete" onClick={() => s.removeAnnouncement(a.id)} className="rounded-full p-1.5 text-faint hover:bg-surface-2 hover:text-danger">
                     <Trash2 className="size-4" />
                   </button>
@@ -69,6 +74,7 @@ export default function AnnouncementsPage() {
       </Card>
 
       <AnnouncementDialog open={open} onClose={() => setOpen(false)} />
+      {editing && <AnnouncementDialog key={editing.id} open initial={editing} onClose={() => setEditing(null)} />}
     </Page>
   );
 }

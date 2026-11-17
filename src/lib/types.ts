@@ -86,6 +86,8 @@ export type Task = {
   color?: string | null;
 };
 
+export type AgendaItem = { id: string; text: string; minutes: number; done: boolean };
+
 export type Message = {
   id: string;
   memberId: string | null;
@@ -141,6 +143,8 @@ export type ClubData = {
   tasks: Task[];
   resources: Resource[];
   messages: Message[];
+  /** Officers only: the meeting agenda (null for everyone else). */
+  agenda: { title: string; items: AgendaItem[] } | null;
   /** Subscribe link for Google/Apple/Outlook calendars. */
   calendarUrl: string;
 };

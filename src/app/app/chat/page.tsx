@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, BarChart3, MessageCircle, Trash2 } from "lucide-react";
+import { ArrowUp, BarChart3, CalendarPlus, MessageCircle, Trash2 } from "lucide-react";
+import { EventDialog } from "@/components/app/quick-add";
+import { guessDate } from "@/lib/dates";
 import type { Message } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -135,6 +137,9 @@ export default function ChatPage() {
 function PollCard({ m, canClose }: { m: Message; canClose: boolean }) {
   const vote = useClub((s) => s.votePoll);
   const close = useClub((s) => s.closePoll);
+  const role = useClub((s) => s.role);
+  const calendarOn = useClub((s) => s.settings.features.calendar);
+  const [meeting, setMeeting] = useState<string | null>(null);
   const p = m.poll!;
   const total = p.counts.reduce((a, b) => a + b, 0);
   const top = Math.max(...p.counts);
@@ -182,6 +187,25 @@ function PollCard({ m, canClose }: { m: Message; canClose: boolean }) {
           </button>
         )}
       </div>
+      {p.closed && total > 0 && role !== "member" && calendarOn && (
+        <div className="mt-3 border-t border-line pt-3">
+          {p.options
+            .filter((_, i) => p.counts[i] === top)
+            .map((o) => (
+              <button key={o} onClick={() => setMeeting(o)} className="flex items-center gap-1.5 text-xs font-medium text-accent-text">
+                <CalendarPlus className="size-3.5" /> Make “{o}” a meeting
+              </button>
+            ))}
+        </div>
+      )}
+      {meeting && (
+        <EventDialog
+          key={meeting}
+          open
+          onClose={() => setMeeting(null)}
+          prefill={{ title: "Meeting", type: "meeting", ...(guessDate(meeting) ? { date: guessDate(meeting)! } : {}), notes: `Picked in the chat poll: ${m.body} → ${meeting}` }}
+        />
+      )}
     </div>
   );
 }

@@ -63,6 +63,9 @@ export const clubs = pgTable("clubs", {
   wiredTemplate: text("wired_template").notNull(),
   /** How many days one AM Wired message covers (1 = daily, school days only). */
   wiredDays: integer("wired_days").notNull().default(1),
+  /** Officers' meeting agenda: items with minutes, in order. */
+  agenda: jsonb("agenda").$type<{ id: string; text: string; minutes: number; done: boolean }[]>().notNull().default([]),
+  agendaTitle: text("agenda_title").notNull().default("Next meeting"),
   /** Secret part of the calendar subscription link (Google/Apple/Outlook). */
   calendarToken: text("calendar_token"),
   features: jsonb("features").$type<Features>().notNull(),
@@ -199,3 +202,12 @@ export const feedback = pgTable("feedback", {
   done: boolean("done").notNull().default(false),
   createdAt: now(),
 }, (t) => [index("feedback_created").on(t.createdAt)]);
+
+/** One-time password reset links (we store a hash of the token, never the token). */
+export const passwordResets = pgTable("password_resets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
+  createdAt: now(),
+}, (t) => [index("password_resets_user").on(t.userId)]);

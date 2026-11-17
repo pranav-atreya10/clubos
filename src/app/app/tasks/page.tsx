@@ -79,7 +79,10 @@ function TaskDetails({ t, onClose }: { t: Task; onClose: () => void }) {
   const live = useClub((s) => s.tasks.find((x) => x.id === t.id)) ?? t;
   const role = useClub((s) => s.role);
   const setColor = useClub((s) => s.setColor);
+  const updateTask = useClub((s) => s.updateTask);
   const canColor = role === "admin" || role === "advisor";
+  const [draft, setDraft] = useState({ title: live.title, assigneeId: live.assigneeId, due: live.due });
+  const changed = draft.title.trim() !== live.title || draft.assigneeId !== live.assigneeId || draft.due !== live.due;
   const who = members.find((m) => m.id === live.assigneeId)?.name ?? "Unassigned";
   const status = COLS.find((c) => c.s === live.status)!.label;
   return (
@@ -98,6 +101,29 @@ function TaskDetails({ t, onClose }: { t: Task; onClose: () => void }) {
           <dd className="mt-1 font-medium">{status}</dd>
         </div>
       </dl>
+      {role === "admin" && (
+        <form
+          className="mb-5 space-y-3 rounded-2xl border border-line p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (changed && draft.title.trim()) updateTask(live.id, { ...draft, title: draft.title.trim() });
+          }}
+        >
+          <p className="text-xs font-medium text-muted">Edit</p>
+          <Input aria-label="Task" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          <div className="grid grid-cols-2 gap-2">
+            <Select aria-label="Who" value={draft.assigneeId} onChange={(e) => setDraft({ ...draft, assigneeId: e.target.value })}>
+              {members.filter((m) => m.role !== "advisor").map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </Select>
+            <Input aria-label="Due" type="date" value={draft.due} onChange={(e) => setDraft({ ...draft, due: e.target.value })} />
+          </div>
+          <Button type="submit" size="sm" variant="primary" disabled={!changed || !draft.title.trim()}>
+            Save changes
+          </Button>
+        </form>
+      )}
       {canColor && (
         <div className="mb-5">
           <p className="mb-2 text-xs text-muted">Color</p>
