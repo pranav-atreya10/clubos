@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { ClubEvent, EventType } from "@/lib/types";
 import { addDays, daysFromToday, fmt, fmtLong, relativeDay, startOfWeek, toISODate } from "@/lib/dates";
@@ -200,6 +201,12 @@ export default function CalendarPage() {
                     {relativeDay(e.date)} · {e.time} · {e.location}
                   </p>
                   {e.notes && <p className="mt-1 text-sm text-muted">{e.notes}</p>}
+                  {(role === "admin" || role === "advisor") && (e.type === "meeting" || (e.agenda?.length ?? 0) > 0) && (
+                    <Link href={`/app/agenda?event=${e.id}`} className="mt-2 inline-flex items-center gap-1.5 text-sm text-accent-text underline-offset-4 hover:underline">
+                      <ListChecks className="size-4" />
+                      {e.agenda?.length ? `Agenda · ${e.agenda.length} items` : "Plan agenda"}
+                    </Link>
+                  )}
                 </div>
                 {(role === "admin" || role === "advisor") && (
                   <div className="flex self-start">

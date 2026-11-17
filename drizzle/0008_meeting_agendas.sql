@@ -1,0 +1,2 @@
+ALTER TABLE "events" ADD COLUMN "agenda" jsonb;--> statement-breakpoint
+UPDATE "events" e SET "agenda" = c."agenda" FROM "clubs" c WHERE e."id" = (SELECT x."id" FROM "events" x WHERE x."club_id" = c."id" AND x."type" = 'meeting' AND x."date" >= CURRENT_DATE ORDER BY x."date" LIMIT 1) AND jsonb_array_length(c."agenda") > 0;

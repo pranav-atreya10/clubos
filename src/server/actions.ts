@@ -709,11 +709,11 @@ export async function updateResource(clubId: string, resourceId: string, r: { ti
   });
 }
 
-/* ---------- meeting agenda (officers only) ---------- */
+/* ---------- meeting agendas (officers + advisor) ---------- */
 
-export async function saveAgenda(clubId: string, title: string, items: { id: string; text: string; minutes: number; done: boolean }[]): Promise<Result> {
+export async function saveAgenda(clubId: string, eventId: string, items: { id: string; text: string; minutes: number; done: boolean }[]): Promise<Result> {
   return run(async () => {
-    const { db } = await requireMember(clubId, ["admin"]);
+    const { db } = await requireMember(clubId, ["admin", "advisor"]);
     if (!Array.isArray(items) || items.length > 40) throw new Invalid("Up to 40 agenda items");
     const clean = items.map((i) => ({
       id: id(i?.id),
@@ -721,7 +721,7 @@ export async function saveAgenda(clubId: string, title: string, items: { id: str
       minutes: Math.max(0, Math.min(240, Math.round(Number(i?.minutes) || 0))),
       done: Boolean(i?.done),
     }));
-    await db.update(schema.clubs).set({ agenda: clean, agendaTitle: text(title, 80) || "Next meeting" }).where(eq(schema.clubs.id, clubId));
+    await db.update(schema.events).set({ agenda: clean }).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId))));
     return snap(clubId);
   });
 }

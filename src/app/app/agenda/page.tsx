@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Check, Pause, Play, Plus, SkipForward, Trash2, Wand2 } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ArrowDown, ArrowUp, Check, Copy, Pause, Play, Plus, SkipForward, Trash2, Wand2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { AgendaItem } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import { Page, PageHeader, Card, Empty } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
+import { Input, Select } from "@/components/ui/field";
+import { daysFromToday, fmtLong } from "@/lib/dates";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const SAMPLE: AgendaItem[] = [
@@ -17,23 +19,52 @@ const SAMPLE: AgendaItem[] = [
   { id: uid(), text: "Plan next steps + assign tasks", minutes: 10, done: false },
   { id: uid(), text: "Wrap-up + poll for next meeting day", minutes: 5, done: false },
 ];
+/** Kept outside the component so the React compiler doesn't treat it as render-time work. */
+const stamp = () => Date.now();
 const mmss = (s: number) => `${s < 0 ? "-" : ""}${Math.floor(Math.abs(s) / 60)}:${String(Math.abs(s) % 60).padStart(2, "0")}`;
 
-/** Officers only: plan the meeting, then run it with a timer per item. */
+/** Officers + advisor: plan each meeting's agenda, then run it with a timer per item. */
 export default function AgendaPage() {
-  const agenda = useClub((s) => s.agenda);
-  const save = useClub((s) => s.saveAgenda);
+  return (
+    <Suspense>
+      <Agenda />
+    </Suspense>
+  );
+}
+
+function Agenda() {
+  const role = useClub((s) => s.role);
+  const events = useClub((s) => s.events);
+  const saveAgenda = useClub((s) => s.saveAgenda);
+  const today = daysFromToday(0);
+  // Upcoming meetings, plus any event that already has an agenda.
+  const meetings = events
+    .filter((e) => (e.type === "meeting" && e.date >= today) || (e.agenda && e.agenda.length > 0))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const fromLink = useSearchParams().get("event");
+  const [picked, setPicked] = useState<string | null>(fromLink);
   const [running, setRunning] = useState<{ index: number; startedAt: number; paused: number | null } | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(stamp);
   useEffect(() => {
     if (!running) return;
-    const t = setInterval(() => setNow(Date.now()), 500);
+    const t = setInterval(() => setNow(stamp()), 500);
     return () => clearInterval(t);
   }, [running]);
 
-  if (!agenda) return <Page><PageHeader title="Officers only" /></Page>;
-  const { title, items } = agenda;
-  const set = (next: AgendaItem[], t = title) => save(t, next);
+  if (role !== "admin" && role !== "advisor") return <Page><PageHeader title="Officers only" /></Page>;
+  const meeting = events.find((e) => e.id === picked) ?? meetings.find((e) => e.date >= today) ?? meetings[meetings.length - 1];
+  if (!meeting)
+    return (
+      <Page className="max-w-3xl">
+        <PageHeader title="Agenda" subtitle="Each meeting gets its own agenda. Only officers and the advisor see it." />
+        <Empty title="No meetings coming up" body="Add a meeting on the Calendar (type: Meeting), then plan its agenda here." />
+      </Page>
+    );
+  const items = meeting.agenda ?? [];
+  const set = (next: AgendaItem[]) => saveAgenda(meeting.id, next);
+  const previous = [...events]
+    .filter((e) => e.id !== meeting.id && e.agenda && e.agenda.length > 0 && e.date <= meeting.date)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
   const total = items.reduce((n, i) => n + i.minutes, 0);
   const move = (i: number, d: number) => {
     const j = i + d;
@@ -50,14 +81,14 @@ export default function AgendaPage() {
     if (!running) return;
     set(items.map((x, i) => (i === running.index ? { ...x, done: true } : x)));
     const after = items.findIndex((x, i) => i > running.index && !x.done);
-    setRunning(after >= 0 ? { index: after, startedAt: Date.now(), paused: null } : null);
+    setRunning(after >= 0 ? { index: after, startedAt: stamp(), paused: null } : null);
   };
 
   return (
     <Page className="max-w-3xl">
       <PageHeader
         title="Agenda"
-        subtitle={`Only officers see this. ${items.length} items · ${total} minutes`}
+        subtitle={`Only officers and the advisor see this. ${items.length} items · ${total} minutes`}
         actions={
           items.length > 0 &&
           (running ? (
@@ -67,7 +98,7 @@ export default function AgendaPage() {
               variant="accent"
               onClick={() => {
                 const first = items.findIndex((x) => !x.done);
-                setRunning({ index: first >= 0 ? first : 0, startedAt: Date.now(), paused: null });
+                setRunning({ index: first >= 0 ? first : 0, startedAt: stamp(), paused: null });
               }}
             >
               <Play className="size-4 fill-current" /> Run meeting
@@ -91,7 +122,7 @@ export default function AgendaPage() {
             <Button
               variant="onAccent"
               onClick={() =>
-                setRunning((r) => (r ? (r.paused ? { ...r, startedAt: r.startedAt + (Date.now() - r.paused), paused: null } : { ...r, paused: Date.now() }) : r))
+                setRunning((r) => (r ? (r.paused ? { ...r, startedAt: r.startedAt + (stamp() - r.paused), paused: null } : { ...r, paused: stamp() }) : r))
               }
             >
               {running.paused ? <Play className="size-4" /> : <Pause className="size-4" />} {running.paused ? "Resume" : "Pause"}
@@ -101,15 +132,37 @@ export default function AgendaPage() {
       )}
 
       <Card className="p-4 sm:p-6">
-        <Input aria-label="Meeting name" value={title} onChange={(e) => set(items, e.target.value)} className="mb-4 h-11 text-lg font-semibold" />
+        <Select
+          aria-label="Meeting"
+          value={meeting.id}
+          onChange={(e) => {
+            setRunning(null);
+            setPicked(e.target.value);
+          }}
+          className="mb-4 h-11 text-base font-semibold"
+        >
+          {!meetings.some((m) => m.id === meeting.id) && <option value={meeting.id}>{meeting.title} · {fmtLong(meeting.date)}</option>}
+          {meetings.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.title} · {fmtLong(m.date)}
+            </option>
+          ))}
+        </Select>
         {items.length === 0 ? (
           <Empty
             title="No agenda yet"
             body="Start from a sample and change it, or add your own items."
             action={
-              <Button onClick={() => set(SAMPLE.map((x) => ({ ...x, id: uid() })))}>
-                <Wand2 className="size-4" /> Use a sample agenda
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                {previous && (
+                  <Button onClick={() => set(previous.agenda!.map((x) => ({ ...x, id: uid(), done: false })))}>
+                    <Copy className="size-4" /> Copy from {fmtLong(previous.date)}
+                  </Button>
+                )}
+                <Button onClick={() => set(SAMPLE.map((x) => ({ ...x, id: uid() })))}>
+                  <Wand2 className="size-4" /> Use a sample agenda
+                </Button>
+              </div>
             }
           />
         ) : (
@@ -123,13 +176,16 @@ export default function AgendaPage() {
                 >
                   {it.done && <Check className="size-3.5" strokeWidth={3} />}
                 </button>
+                <div className="min-w-0 flex-1">
                 <Input
                   aria-label="Agenda item"
                   value={it.text}
                   onChange={(e) => set(items.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
                   placeholder="What happens"
-                  className={cn("h-9 flex-1", it.done && "line-through")}
+                  className={cn("h-9", it.done && "line-through")}
                 />
+                </div>
+                <div className="w-16 shrink-0">
                 <Input
                   aria-label="Minutes"
                   type="number"
@@ -137,8 +193,9 @@ export default function AgendaPage() {
                   max={240}
                   value={it.minutes}
                   onChange={(e) => set(items.map((x, j) => (j === i ? { ...x, minutes: Number(e.target.value) || 0 } : x)))}
-                  className="h-9 w-16 text-center tabular-nums"
+                  className="h-9 px-1 text-center tabular-nums"
                 />
+                </div>
                 <span className="text-xs text-faint">min</span>
                 <button aria-label="Move up" onClick={() => move(i, -1)} className="rounded p-1 text-faint hover:text-fg"><ArrowUp className="size-4" /></button>
                 <button aria-label="Move down" onClick={() => move(i, 1)} className="rounded p-1 text-faint hover:text-fg"><ArrowDown className="size-4" /></button>
@@ -153,7 +210,7 @@ export default function AgendaPage() {
           </Button>
           {items.some((x) => x.done) && (
             <Button size="sm" variant="ghost" onClick={() => set(items.map((x) => ({ ...x, done: false })))}>
-              Uncheck all for next meeting
+              Uncheck all
             </Button>
           )}
         </div>

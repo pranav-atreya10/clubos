@@ -160,7 +160,7 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
     // Members don't need the AM Wired setup (template, email).
     settings: leader ? settingsOf(club, advisorNameOf(members)) : { ...settingsOf(club, advisorNameOf(members)), wiredTemplate: "", wiredEmail: "" },
     members: members.map(shapeMember),
-    events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, type: e.type, notes: e.notes, color: e.color })),
+    events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, type: e.type, notes: e.notes, color: e.color, agenda: leader ? e.agenda : null })),
     wired: wired.map((w) => ({
       id: w.id,
       weekOf: w.weekOf,
@@ -189,7 +189,6 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
         : null,
     })),
     calendarUrl: `/api/calendar/${club.calendarToken}.ics`,
-    agenda: role === "admin" ? { title: club.agendaTitle, items: club.agenda } : null,
     resources: resources
       .filter((r) => leader || r.category !== "Officers")
       .map((r) => ({ id: r.id, title: r.title, kind: r.kind, url: r.url, category: r.category, addedBy: r.addedBy, date: r.date })),

@@ -44,6 +44,8 @@ export type ClubEvent = {
   type: EventType;
   notes: string;
   color?: string | null;
+  /** Officers + advisor only: this meeting's agenda. */
+  agenda?: AgendaItem[] | null;
 };
 
 export type WiredStatus =
@@ -143,8 +145,6 @@ export type ClubData = {
   tasks: Task[];
   resources: Resource[];
   messages: Message[];
-  /** Officers only: the meeting agenda (null for everyone else). */
-  agenda: { title: string; items: AgendaItem[] } | null;
   /** Subscribe link for Google/Apple/Outlook calendars. */
   calendarUrl: string;
 };

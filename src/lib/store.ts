@@ -41,7 +41,6 @@ type Data = {
   resources: Resource[];
   messages: Message[];
   calendarUrl: string;
-  agenda: { title: string; items: AgendaItem[] } | null;
 };
 
 type State = Data & {
@@ -93,7 +92,7 @@ type State = Data & {
   deleteMessage: (id: string) => void;
   createPoll: (question: string, options: string[]) => void;
   updateEvent: (id: string, e: Omit<ClubEvent, "id">) => void;
-  saveAgenda: (title: string, items: AgendaItem[]) => void;
+  saveAgenda: (eventId: string, items: AgendaItem[]) => void;
   updateTask: (id: string, t: Pick<Task, "title" | "assigneeId" | "due">) => void;
   updateAnnouncement: (id: string, a: Pick<Announcement, "title" | "body">) => void;
   updateResource: (id: string, r: Omit<Resource, "id" | "addedBy" | "date">) => void;
@@ -143,7 +142,6 @@ const EMPTY: Data = {
   resources: [],
   messages: [],
   calendarUrl: "",
-  agenda: null,
 };
 
 const fromSnapshot = (s: Snapshot): Partial<State> => {
@@ -166,7 +164,6 @@ const fromSnapshot = (s: Snapshot): Partial<State> => {
     resources: c.resources,
     messages: c.messages,
     calendarUrl: c.calendarUrl,
-    agenda: c.agenda,
   };
 };
 
@@ -363,7 +360,8 @@ export const useClub = create<State>()((set, get) => {
         (s) => ({ messages: [...s.messages, { id: `tmp-${Date.now()}`, memberId: s.meId, author: s.userName, body, at: new Date().toISOString() }] }),
         (c) => api.sendMessage(c, body),
       ),
-    saveAgenda: (title, items) => saveTyping("agenda", () => ({ agenda: { title, items } }), (c) => api.saveAgenda(c, title, items)),
+    saveAgenda: (eventId, items) =>
+      saveTyping(`agenda-${eventId}`, (s) => ({ events: s.events.map((e) => (e.id === eventId ? { ...e, agenda: items } : e)) }), (c) => api.saveAgenda(c, eventId, items)),
     updateEvent: (id, e) => void save((s) => ({ events: s.events.map((x) => (x.id === id ? { ...x, ...e } : x)) }), (c) => api.updateEvent(c, id, e)),
     updateTask: (id, t) => void save((s) => ({ tasks: s.tasks.map((x) => (x.id === id ? { ...x, ...t } : x)) }), (c) => api.updateTask(c, id, t)),
     updateAnnouncement: (id, a) =>
