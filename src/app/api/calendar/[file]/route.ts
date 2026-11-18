@@ -38,7 +38,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ file: string }
     "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
     "X-PUBLISHED-TTL:PT1H",
   ];
-  for (const e of events) {
+  // Events copied in from Schoology etc. stay out: people already get those from the school calendar.
+  for (const e of events.filter((x) => !x.feedId)) {
     const day = e.date.replace(/-/g, "");
     const t = parseTime(e.time);
     lines.push("BEGIN:VEVENT", `UID:${e.id}@clubos`, `DTSTAMP:${now}`);

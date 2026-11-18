@@ -46,7 +46,11 @@ export type ClubEvent = {
   color?: string | null;
   /** Officers + advisor only: this meeting's agenda. */
   agenda?: AgendaItem[] | null;
+  /** Name of the outside calendar this came from (e.g. "Schoology"); read-only in ClubOS. */
+  source?: string | null;
 };
+
+export type CalendarFeed = { id: string; label: string; host: string; filter: string; lastSyncedAt: string | null; lastError: string | null; count: number };
 
 export type WiredStatus =
   | "draft"
@@ -147,6 +151,8 @@ export type ClubData = {
   messages: Message[];
   /** Subscribe link for Google/Apple/Outlook calendars. */
   calendarUrl: string;
+  /** Officers only: outside calendars copied onto the club calendar. */
+  feeds: CalendarFeed[] | null;
 };
 
 export type Snapshot = {

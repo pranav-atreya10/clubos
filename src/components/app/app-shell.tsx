@@ -16,6 +16,7 @@ import { QuickAdd } from "./quick-add";
 import { FeedbackLinks } from "./feedback-button";
 import { SecurityPanel } from "@/components/security/security-panel";
 import { Onboarding } from "./onboarding";
+import { Walkthrough, startWalkthrough } from "./walkthrough";
 
 /** Loads the club from the database, then keeps it fresh so changes from other people show up. */
 function useClubData() {
@@ -85,7 +86,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <ClubSwitcher />
       </div>
 
-      <QuickAdd />
+      <div data-tour="new">
+        <QuickAdd />
+      </div>
 
       <nav aria-label="Main" className={cn(panel, "no-scrollbar flex-1 overflow-y-auto p-2")} data-lenis-prevent>
         {GROUPS.map((g) => {
@@ -106,6 +109,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   <Link
                     key={href}
                     href={href}
+                    data-tour={`nav-${href}`}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -134,22 +138,27 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </div>
           );
         })}
-        <a
-          href="/demovid"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 flex h-10 items-center gap-2.5 rounded-xl px-1.5 text-[14px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        <button
+          type="button"
+          data-tour="help"
+          onClick={() => {
+            onNavigate?.();
+            startWalkthrough();
+          }}
+          className="mt-2 flex h-10 w-full items-center gap-2.5 rounded-xl px-1.5 text-left text-[14px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <span className="inline-flex size-7 items-center justify-center rounded-lg border border-line bg-surface">
             <CircleHelp className="size-3.5" />
           </span>
-          Help & 43-second tour
-        </a>
+          Help & walkthrough
+        </button>
         <FeedbackLinks />
       </nav>
 
       <div className={cn(panel, "space-y-3 p-3")}>
-        <AccountCard />
+        <div data-tour="account">
+          <AccountCard />
+        </div>
         <div className="flex items-center justify-between px-1">
           <span className="text-xs text-faint">Theme</span>
           <ThemeToggle />
@@ -166,6 +175,7 @@ function AttendanceLink() {
       href={url}
       target="_blank"
       rel="noreferrer"
+      data-tour="attendance"
       className="flex h-10 items-center gap-2.5 rounded-xl px-1.5 text-[14px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
     >
       <span className="inline-flex size-7 items-center justify-center rounded-lg border border-line bg-surface">
@@ -306,6 +316,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </main>
       <SaveError />
+      {ready && !needsSecurity && clubId && <Walkthrough key={`${clubId}-${role}`} />}
     </div>
   );
 }

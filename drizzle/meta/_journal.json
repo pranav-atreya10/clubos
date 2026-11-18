@@ -64,6 +64,13 @@
       "when": 1795400000000,
       "tag": "0008_meeting_agendas",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795480000000,
+      "tag": "0009_calendar_feeds",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, CalendarSync, Check, ChevronLeft, ChevronRight, Copy, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import { useClub } from "@/lib/store";
 import type { ClubEvent, EventType } from "@/lib/types";
 import { addDays, daysFromToday, fmt, fmtLong, relativeDay, startOfWeek, toISODate } from "@/lib/dates";
@@ -83,6 +83,7 @@ export default function CalendarPage() {
   const [subscribing, setSubscribing] = useState(false);
   const [editing, setEditing] = useState<ClubEvent | null>(null);
   const calendarUrl = useClub((s) => s.calendarUrl);
+  const feedCount = useClub((s) => s.feeds?.length ?? 0);
   const today = daysFromToday(0);
 
   const filtered = useMemo(
@@ -109,6 +110,11 @@ export default function CalendarPage() {
             <Button onClick={() => setSubscribing(true)}>
               <CalendarPlus className="size-4" /> Add to my calendar
             </Button>
+            {role === "admin" && (
+              <Link href="/app/settings#school-calendar" className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm text-muted hover:text-fg">
+                <CalendarSync className="size-4" /> {feedCount ? "School calendar" : "Add school calendar"}
+              </Link>
+            )}
             {(role === "admin" || role === "advisor") && (
               <Button variant="primary" onClick={() => setAdding(true)}>
                 <Plus className="size-4" /> New event
@@ -196,19 +202,20 @@ export default function CalendarPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{e.title}</p>
                     <Badge tone={eventTone[e.type]}>{eventLabel[e.type]}</Badge>
+                    {e.source && <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">{e.source}</span>}
                   </div>
                   <p className="mt-0.5 text-sm text-muted">
-                    {relativeDay(e.date)} · {e.time} · {e.location}
+                    {[relativeDay(e.date), e.time, e.location].filter(Boolean).join(" · ")}
                   </p>
                   {e.notes && <p className="mt-1 text-sm text-muted">{e.notes}</p>}
-                  {(role === "admin" || role === "advisor") && (e.type === "meeting" || (e.agenda?.length ?? 0) > 0) && (
+                  {(role === "admin" || role === "advisor") && !e.source && (e.type === "meeting" || (e.agenda?.length ?? 0) > 0) && (
                     <Link href={`/app/agenda?event=${e.id}`} className="mt-2 inline-flex items-center gap-1.5 text-sm text-accent-text underline-offset-4 hover:underline">
                       <ListChecks className="size-4" />
                       {e.agenda?.length ? `Agenda · ${e.agenda.length} items` : "Plan agenda"}
                     </Link>
                   )}
                 </div>
-                {(role === "admin" || role === "advisor") && (
+                {(role === "admin" || role === "advisor") && !e.source && (
                   <div className="flex self-start">
                   <button
                     aria-label={`Edit ${e.title}`}

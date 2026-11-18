@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { getDb, schema, type DB } from "@/db";
 import type { Role, Snapshot, TaskStatus } from "@/lib/types";
 import { FEATURES, type FeatureKey } from "@/lib/features";
@@ -14,6 +14,7 @@ import { CLUB_COOKIE, DEMO_USERS, DEMO_USER_COOKIE, getViewer } from "./session"
 import { newId, newInviteCode } from "./ids";
 import { ALL_ON } from "@/lib/features";
 import { COLOR_KEYS } from "@/lib/colors";
+import { FeedError, normalizeFeedUrl, syncFeed } from "./feeds";
 
 export type Result = { ok: true; snapshot: Snapshot } | { ok: false; error: string };
 
@@ -250,7 +251,7 @@ export async function wiredGenerate(clubId: string, weekId: string): Promise<Res
     const { db, viewer, club } = await requireMember(clubId, ["admin"]);
     const w = await week(db, clubId, weekId);
     const settings = settingsOf(club);
-    const evs = settings.features.calendar ? await db.select().from(schema.events).where(eq(schema.events.clubId, clubId)) : [];
+    const evs = settings.features.calendar ? await db.select().from(schema.events).where(and(eq(schema.events.clubId, clubId), isNull(schema.events.feedId))) : [];
     const message = buildDraft({ ...settings, advisorName: await advisorNameFor(db, clubId) }, evs.map((e) => ({ ...e })), w.weekOf, w.endDate);
     await setWeek(db, w.id, { message, status: "draft" });
     await log(db, clubId, "wired", w.id, viewer.name, settings.features.calendar ? "Auto-filled draft from calendar" : "Auto-filled draft");
@@ -398,7 +399,7 @@ export async function addEvent(clubId: string, e: { title: string; date: string;
 export async function removeEvent(clubId: string, eventId: string): Promise<Result> {
   return run(async () => {
     const { db } = await requireMember(clubId, ["admin", "advisor"]);
-    await db.delete(schema.events).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId))));
+    await db.delete(schema.events).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId)), isNull(schema.events.feedId)));
     return snap(clubId);
   });
 }
@@ -581,8 +582,9 @@ export async function removeResource(clubId: string, resourceId: string): Promis
 export async function setColor(clubId: string, kind: "event" | "task", id: string, c: string | null): Promise<Result> {
   return run(async () => {
     const { db } = await requireMember(clubId, ["admin", "advisor"]);
-    const table = oneOf(kind, ["event", "task"] as const) === "event" ? schema.events : schema.tasks;
-    await db.update(table).set({ color: color(c) }).where(and(eq(table.clubId, clubId), eq(table.id, String(id))));
+    if (oneOf(kind, ["event", "task"] as const) === "event")
+      await db.update(schema.events).set({ color: color(c) }).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, String(id)), isNull(schema.events.feedId)));
+    else await db.update(schema.tasks).set({ color: color(c) }).where(and(eq(schema.tasks.clubId, clubId), eq(schema.tasks.id, String(id))));
     return snap(clubId);
   });
 }
@@ -662,7 +664,7 @@ export async function updateEvent(clubId: string, eventId: string, e: { title: s
         title: text(e?.title, 140, { required: true }), date: isoDate(e?.date), time: text(e?.time, 40), location: text(e?.location, 140),
         type: oneOf(e?.type, ["meeting", "race", "event", "deadline"] as const), notes: text(e?.notes, 1000), color: color(e?.color),
       })
-      .where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId))));
+      .where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId)), isNull(schema.events.feedId)));
     return snap(clubId);
   });
 }
@@ -721,7 +723,67 @@ export async function saveAgenda(clubId: string, eventId: string, items: { id: s
       minutes: Math.max(0, Math.min(240, Math.round(Number(i?.minutes) || 0))),
       done: Boolean(i?.done),
     }));
-    await db.update(schema.events).set({ agenda: clean }).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId))));
+    await db.update(schema.events).set({ agenda: clean }).where(and(eq(schema.events.clubId, clubId), eq(schema.events.id, id(eventId)), isNull(schema.events.feedId)));
+    return snap(clubId);
+  });
+}
+
+/* ---------- outside calendars (Schoology etc.) ---------- */
+
+export async function addFeed(clubId: string, link: string, label: string, filter: string): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin"]);
+    let u: string;
+    try {
+      u = normalizeFeedUrl(text(link, 2000, { required: true }));
+    } catch (e) {
+      throw e instanceof FeedError ? new Invalid(e.message) : e;
+    }
+    const existing = await db.select({ id: schema.calendarFeeds.id }).from(schema.calendarFeeds).where(eq(schema.calendarFeeds.clubId, clubId));
+    if (existing.length >= 5) throw new Invalid("Up to 5 outside calendars per club");
+    const [feed] = await db
+      .insert(schema.calendarFeeds)
+      .values({ id: newId(), clubId, url: u, label: text(label, 40) || "Schoology", filter: text(filter, 60) })
+      .returning();
+    try {
+      await syncFeed(db, feed);
+    } catch (e) {
+      // Don't keep a link that doesn't work.
+      await db.delete(schema.calendarFeeds).where(eq(schema.calendarFeeds.id, feed.id));
+      throw e instanceof FeedError ? new Invalid(e.message) : e;
+    }
+    return snap(clubId);
+  });
+}
+
+export async function syncFeedNow(clubId: string, feedId: string): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin"]);
+    const [feed] = await db.select().from(schema.calendarFeeds).where(and(eq(schema.calendarFeeds.clubId, clubId), eq(schema.calendarFeeds.id, id(feedId))));
+    if (!feed) throw new Invalid("That calendar was already removed");
+    await syncFeed(db, feed).catch(() => null); // the error is saved on the feed and shown in Settings
+    return snap(clubId);
+  });
+}
+
+export async function updateFeed(clubId: string, feedId: string, label: string, filter: string): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin"]);
+    const [feed] = await db
+      .update(schema.calendarFeeds)
+      .set({ label: text(label, 40) || "Schoology", filter: text(filter, 60) })
+      .where(and(eq(schema.calendarFeeds.clubId, clubId), eq(schema.calendarFeeds.id, id(feedId))))
+      .returning();
+    if (feed) await syncFeed(db, feed).catch(() => null);
+    return snap(clubId);
+  });
+}
+
+export async function removeFeed(clubId: string, feedId: string): Promise<Result> {
+  return run(async () => {
+    const { db } = await requireMember(clubId, ["admin"]);
+    // Its events go with it (on delete cascade).
+    await db.delete(schema.calendarFeeds).where(and(eq(schema.calendarFeeds.clubId, clubId), eq(schema.calendarFeeds.id, id(feedId))));
     return snap(clubId);
   });
 }

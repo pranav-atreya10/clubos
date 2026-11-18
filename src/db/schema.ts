@@ -110,8 +110,24 @@ export const events = pgTable("events", {
   color: text("color"),
   /** Leaders only: this meeting's agenda (null = none yet). */
   agenda: jsonb("agenda").$type<{ id: string; text: string; minutes: number; done: boolean }[]>(),
+  /** Set when the event was copied in from an outside calendar (read-only in ClubOS). */
+  feedId: text("feed_id").references(() => calendarFeeds.id, { onDelete: "cascade" }),
   createdAt: now(),
 }, (t) => [index("events_club").on(t.clubId)]);
+
+/** Outside calendars (e.g. Schoology) whose events show on the club calendar, refreshed about hourly. */
+export const calendarFeeds = pgTable("calendar_feeds", {
+  id: text("id").primaryKey(),
+  clubId: text("club_id").notNull().references(() => clubs.id, { onDelete: "cascade" }),
+  /** The feed link (https). Private to officers: anyone with it can read that calendar. */
+  url: text("url").notNull(),
+  label: text("label").notNull().default("Schoology"),
+  /** Optional: only copy events whose name contains this. */
+  filter: text("filter").notNull().default(""),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: now(),
+}, (t) => [index("calendar_feeds_club").on(t.clubId)]);
 
 export const wiredWeeks = pgTable("wired_weeks", {
   id: text("id").primaryKey(),

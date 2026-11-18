@@ -9,6 +9,7 @@ import { getActiveClubCookie, getViewer, type Viewer } from "./session";
 import { randomBytes } from "node:crypto";
 import { newId } from "./ids";
 import { hasSecondFactor } from "./auth";
+import { syncStaleFeeds } from "./feeds";
 
 export type ClubRow = typeof schema.clubs.$inferSelect;
 export type MemberRow = typeof schema.members.$inferSelect;
@@ -90,6 +91,9 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
     club = { ...club, calendarToken: randomBytes(18).toString("base64url") };
     await db.update(schema.clubs).set({ calendarToken: club.calendarToken }).where(eq(schema.clubs.id, club.id));
   }
+  // Outside calendars (Schoology etc.) refresh about once an hour, when someone opens the club.
+  await syncStaleFeeds(db, club.id).catch((e) => console.error("feed refresh failed", e));
+  const feeds = role === "admin" ? await db.select().from(schema.calendarFeeds).where(eq(schema.calendarFeeds.clubId, club.id)).orderBy(asc(schema.calendarFeeds.createdAt)) : [];
   const chat = await db
     .select()
     .from(schema.messages)
@@ -124,6 +128,10 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
   ]);
 
   const hist = toHistory(activity);
+  // Every role sees which outside calendar an event came from (but only officers get the link itself).
+  const feedLabel = new Map(
+    (role === "admin" ? feeds : await db.select({ id: schema.calendarFeeds.id, label: schema.calendarFeeds.label }).from(schema.calendarFeeds).where(eq(schema.calendarFeeds.clubId, club.id))).map((f) => [f.id, f.label]),
+  );
   // Profile pictures: send a versioned URL, not the image, so the 20-second refresh stays small.
   const userIds = members.map((m) => m.userId).filter((x): x is string => Boolean(x));
   const pics = userIds.length
@@ -160,7 +168,7 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
     // Members don't need the AM Wired setup (template, email).
     settings: leader ? settingsOf(club, advisorNameOf(members)) : { ...settingsOf(club, advisorNameOf(members)), wiredTemplate: "", wiredEmail: "" },
     members: members.map(shapeMember),
-    events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, type: e.type, notes: e.notes, color: e.color, agenda: leader ? e.agenda : null })),
+    events: events.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, type: e.type, notes: e.notes, color: e.color, agenda: leader ? e.agenda : null, source: e.feedId ? (feedLabel.get(e.feedId) ?? "School calendar") : null })),
     wired: wired.map((w) => ({
       id: w.id,
       weekOf: w.weekOf,
@@ -189,6 +197,18 @@ export async function loadClub(db: DB, clubRow: ClubRow, me: MemberRow): Promise
         : null,
     })),
     calendarUrl: `/api/calendar/${club.calendarToken}.ics`,
+    feeds:
+      role === "admin"
+        ? feeds.map((f) => ({
+            id: f.id,
+            label: f.label,
+            host: new URL(f.url).hostname,
+            filter: f.filter,
+            lastSyncedAt: f.lastSyncedAt?.toISOString() ?? null,
+            lastError: f.lastError,
+            count: events.filter((e) => e.feedId === f.id).length,
+          }))
+        : null,
     resources: resources
       .filter((r) => leader || r.category !== "Officers")
       .map((r) => ({ id: r.id, title: r.title, kind: r.kind, url: r.url, category: r.category, addedBy: r.addedBy, date: r.date })),
