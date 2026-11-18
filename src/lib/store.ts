@@ -6,6 +6,7 @@ import type {
   ClubEvent,
   ClubSettings,
   AgendaItem,
+  CalendarFeed,
   ClubSummary,
   Member,
   Message,
@@ -41,6 +42,7 @@ type Data = {
   resources: Resource[];
   messages: Message[];
   calendarUrl: string;
+  feeds: CalendarFeed[] | null;
 };
 
 type State = Data & {
@@ -93,6 +95,11 @@ type State = Data & {
   createPoll: (question: string, options: string[]) => void;
   updateEvent: (id: string, e: Omit<ClubEvent, "id">) => void;
   saveAgenda: (eventId: string, items: AgendaItem[]) => void;
+  /** Returns an error message, or null when the calendar was connected. */
+  addFeed: (url: string, label: string, filter: string) => Promise<string | null>;
+  syncFeed: (id: string) => Promise<void>;
+  updateFeed: (id: string, label: string, filter: string) => void;
+  removeFeed: (id: string) => void;
   updateTask: (id: string, t: Pick<Task, "title" | "assigneeId" | "due">) => void;
   updateAnnouncement: (id: string, a: Pick<Announcement, "title" | "body">) => void;
   updateResource: (id: string, r: Omit<Resource, "id" | "addedBy" | "date">) => void;
@@ -142,6 +149,7 @@ const EMPTY: Data = {
   resources: [],
   messages: [],
   calendarUrl: "",
+  feeds: null,
 };
 
 const fromSnapshot = (s: Snapshot): Partial<State> => {
@@ -164,6 +172,7 @@ const fromSnapshot = (s: Snapshot): Partial<State> => {
     resources: c.resources,
     messages: c.messages,
     calendarUrl: c.calendarUrl,
+    feeds: c.feeds ?? null,
   };
 };
 
@@ -360,6 +369,20 @@ export const useClub = create<State>()((set, get) => {
         (s) => ({ messages: [...s.messages, { id: `tmp-${Date.now()}`, memberId: s.meId, author: s.userName, body, at: new Date().toISOString() }] }),
         (c) => api.sendMessage(c, body),
       ),
+    addFeed: async (url, label, filter) => {
+      const clubId = get().clubId;
+      if (!clubId) return "No club";
+      const r = await api.addFeed(clubId, url, label, filter).catch(() => null);
+      if (!r) return "Couldn't reach the server. Check your connection.";
+      if (!r.ok) return r.error;
+      set(fromSnapshot(r.snapshot));
+      return null;
+    },
+    syncFeed: (id) => save(null, (c) => api.syncFeedNow(c, id)),
+    updateFeed: (id, label, filter) =>
+      void save((s) => ({ feeds: s.feeds?.map((f) => (f.id === id ? { ...f, label, filter } : f)) ?? null }), (c) => api.updateFeed(c, id, label, filter)),
+    removeFeed: (id) =>
+      void save((s) => ({ feeds: s.feeds?.filter((f) => f.id !== id) ?? null, events: s.events.filter((e) => e.source === null || e.source === undefined || s.feeds?.find((f) => f.id === id)?.label !== e.source) }), (c) => api.removeFeed(c, id)),
     saveAgenda: (eventId, items) =>
       saveTyping(`agenda-${eventId}`, (s) => ({ events: s.events.map((e) => (e.id === eventId ? { ...e, agenda: items } : e)) }), (c) => api.saveAgenda(c, eventId, items)),
     updateEvent: (id, e) => void save((s) => ({ events: s.events.map((x) => (x.id === id ? { ...x, ...e } : x)) }), (c) => api.updateEvent(c, id, e)),

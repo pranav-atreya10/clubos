@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { DAY_OPTIONS } from "@/lib/wired";
 import { InviteCode } from "@/components/app/invite-code";
+import { CalendarFeeds } from "@/components/app/calendar-feeds";
 import { FEATURES } from "@/lib/features";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
@@ -120,6 +121,16 @@ export default function SettingsPage() {
             Reset template
           </button>
         </Section>
+        )}
+
+        {features.calendar && (
+          <Section
+            id="school-calendar"
+            title="School calendar"
+            body="Show school events (like Schoology) on the club calendar. They update about every hour, and no one can edit them here."
+          >
+            <CalendarFeeds />
+          </Section>
         )}
 
         {features.attendance && (
